@@ -1,0 +1,13 @@
+{
+    "name": "Addon Builder",
+    "description": "A visual interface to create addon elements easily, like with MCreator. Create structures, blocks, items, and entities with a user-friendly UI.",
+    "author": "NA7E",
+    "version": "1.0.0",
+    "id": "4b934600-957d-4281-b401-d254ddbd1aff",
+    "tags": ["Utility", "Presets"],
+    "target": "v2",
+    "icon": "mdi-progress-wrench",
+    "compatibleAppVersions": {
+        "min": "2.7.0"
+    }
+}
