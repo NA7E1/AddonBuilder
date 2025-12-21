@@ -2,6 +2,7 @@ const { create } = await require('@bridge/sidebar');
 const { Sidebar } = await require('@bridge/ui');
 const { getCurrentProject } = await require('@bridge/env');
 const fs = await require('@bridge/fs');
+const projectRoot = await getCurrentProject();
 
 create({
     id: 'NA7E.addonBuilder.sidebar',
@@ -10,7 +11,11 @@ create({
     component: Sidebar
 });
 
-const LOG_PATH = `${await getCurrentProject()}/.bridge/extensions/AddonBuilder2/addonbuilder.log`;
+if (await fs.fileExists(`${projectRoot}/.bridge/extensions/AddonBuilder/manifest.json`)) {
+    LOG_PATH = `${projectRoot}/.bridge/extensions/AddonBuilder/addonbuilder.log`;
+} else {
+    LOG_PATH = 'extensions/AddonBuilder/addonbuilder.log';
+}
 
 await fs.writeFile(LOG_PATH, `${new Date().toISOString()}: Addon Builder started\n`);
 
