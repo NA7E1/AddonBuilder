@@ -5,7 +5,9 @@
                 <h1 class="text-h6 mb-1">Addon Builder</h1>
                 <p class="text-body-2 mb-3">Create and manage your addon elements.</p>
             </div>
-            <btn icon="mdi-cog" color="secondary" class="ml-auto" />
+            <v-btn icon color="tertiary" class="ml-auto align-self-start">
+                <v-icon>mdi-cog</v-icon>
+            </v-btn>
         </header>
 
         <v-btn color="primary" class="mb-4" @click="scan()">Scan Project</v-btn>

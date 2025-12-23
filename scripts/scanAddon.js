@@ -22,25 +22,6 @@ async function scanAddon() {
         feature_rules: new Map()
     };
 
-    async function addError(entry, errorCode, origin) {
-        if (!entry) return;
-        entry.errors = entry.errors || {};
-        const sourcesArray = entry.errors[errorCode] || (entry.errors[errorCode] = []);
-        const originValue = origin || (entry.identifier || entry.filepath || 'unknown');
-        if (originValue && sourcesArray.indexOf(originValue) === -1) sourcesArray.push(originValue);
-        else if (!originValue && sourcesArray.length === 0) entry.errors[errorCode] = sourcesArray;
-    }
-
-    async function hasError(entry, errorCode) {
-        return !!(entry && entry.errors && entry.errors[errorCode] && entry.errors[errorCode].length);
-    }
-
-    async function mergeErrors(targetEntry, sourceEntry, sourceId) {
-        if (!sourceEntry || !sourceEntry.errors) return;
-        const sourceIdentifier = sourceId || sourceEntry.identifier || sourceEntry.filepath;
-        for (const code of Object.keys(sourceEntry.errors)) await addError(targetEntry, code, sourceIdentifier);
-    }
-
     const scanStart = Date.now();
     let filesFound = 0;
 
@@ -48,7 +29,7 @@ async function scanAddon() {
 
     async function scan(type, dir, map) {
         let entries;
-        try { entries = await fs.readdir(dir); } catch(err) {
+        try { entries = await fs.readdir(dir); } catch (err) {
             await window.appendLog(`Error reading dir ${dir}: ${err.message}`);
             return;
         }
@@ -73,21 +54,21 @@ async function scanAddon() {
                     const text = typeof raw === 'string' ? raw : await raw.text();
                     const cleaned = text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/,\s*([}\]])/g, '$1');
                     const parsed = JSON.parse(cleaned);
-                    
+
                     const key = type !== 'feature' ? `minecraft:${type}` : Object.keys(parsed || {}).find(k => k.startsWith('minecraft:'));
                     const data = parsed?.[key];
 
                     if (data?.description?.identifier) {
                         map.set(data.description.identifier, { path: filePath, visited: false, data, elementType: key, version: parsed?.format_version || 'unknown' });
                     } else {
-                        elements.unknown.push({ path: filePath, errors: { MISSING_IDENTIFIER: [filePath] } } );
+                        elements.unknown.push({ path: filePath, errors: { MISSING_IDENTIFIER: [filePath] } });
                     }
-                } catch(err) {
+                } catch (err) {
                     await window.appendLog(`Error: ${filePath} - ${err.message}`);
                 }
                 filesFound++;
             } else {
-                elements.unknown.push({ path: filePath, errors: { UNKNOWN_FILE_TYPE: [filePath] } } );
+                elements.unknown.push({ path: filePath, errors: { UNKNOWN_FILE_TYPE: [filePath] } });
                 filesFound++;
             }
         }
@@ -142,39 +123,34 @@ async function scanAddon() {
                         break;
                 }
                 feature.features.push(await checkFeature(checkId));
-                const child = feature.features[feature.features.length - 1];
-                await mergeErrors(feature, child);
-                if (await hasError(child, "INVALID_FEATURE")) {
-                    await addError(feature, "INVALID_SUB_FEATURE", child.identifier || child.filepath);
+                if (feature.features[feature.features.length - 1].errors.INVALID_FEATURE) {
+                    feature.errors.INVALID_SUB_FEATURE = [feature.features[feature.features.length - 1].identifier || feature.features[feature.features.length - 1].filepath];
                 } else validSubFeatures++;
             }
 
             if (validSubFeatures === 0) {
-                await addError(feature, "NO_VALID_SUB_FEATURES", feature.filepath);
-                await addError(feature, "INVALID_FEATURE", feature.filepath);
+                feature.errors.NO_VALID_SUB_FEATURES = [feature.filepath];
             }
         } else if (['minecraft:scatter_feature', 'minecraft:search_feature'].includes(feature.elementType)) {
             feature.subFeature = await checkFeature(featureInfo.data?.places_feature);
-            await mergeErrors(feature, feature.subFeature);
-            if (await hasError(feature.subFeature, "INVALID_FEATURE")) {
-                await addError(feature, "INVALID_SUB_FEATURE", feature.subFeature.identifier || feature.subFeature.filepath);
-                await addError(feature, "INVALID_FEATURE", feature.subFeature.identifier || feature.subFeature.filepath);
+            if (feature.subFeature.errors.INVALID_FEATURE) {
+                feature.errors.INVALID_SUB_FEATURE = [feature.subFeature.identifier || feature.subFeature.filepath];
+                feature.errors.INVALID_FEATURE = [feature.subFeature.identifier || feature.subFeature.filepath];
             }
         } else if (feature.elementType === 'minecraft:snap_to_surface_feature') {
             feature.features.push(await checkFeature(featureInfo.data?.feature_to_snap));
             const snapChild = feature.features[feature.features.length - 1];
-            await mergeErrors(feature, snapChild);
-            if (await hasError(snapChild, "INVALID_FEATURE")) {
-                await addError(feature, "INVALID_SUB_FEATURE", snapChild.identifier || snapChild.filepath);
-                await addError(feature, "INVALID_FEATURE", snapChild.identifier || snapChild.filepath);
+            if (snapChild.errors.INVALID_FEATURE) {
+                feature.errors.INVALID_SUB_FEATURE = [snapChild.identifier || snapChild.filepath];
+                feature.errors.INVALID_FEATURE = [snapChild.identifier || snapChild.filepath];
             }
         } else if (feature.elementType === 'minecraft:structure_template_feature') {
             const structName = featureInfo.data?.structure_name?.split(':')?.pop();
             if (!structName || !index.mcstructures.has(structName)) {
-                await addError(feature, "MISSING_STRUCTURE", structName || feature.filepath);
-                await addError(feature, "INVALID_FEATURE", structName || feature.filepath);
+                feature.errors.MISSING_STRUCTURE = [structName || feature.filepath];
+                feature.errors.INVALID_FEATURE = [structName || feature.filepath];
             } else feature.structure = index.mcstructures.get(structName);
-        } else await addError(feature, "UNCHECKED_FEATURE", feature.filepath);
+        } else feature.errors.UNCHECKED_FEATURE = [feature.filepath];
         await window.appendLog(`Returning feature ${id}.`);
         return feature;
     };
@@ -231,7 +207,7 @@ async function scanAddon() {
             start_pool: await checkPool(jigsawInfo.data?.start_pool),
             pool_aliases: []
         };
-        
+
         if (!jigsaw.start_pool || await hasError(jigsaw.start_pool, "NO_VALID_ELEMENTS")) await addError(jigsaw, "INVALID_START_POOL", jigsaw.filepath);
 
         for (const pool of jigsawInfo.data?.pool_aliases || []) {
@@ -286,7 +262,7 @@ async function scanAddon() {
     // 4. Check Orphaned Pools
 
     for (const [id, info] of index.template_pools) if (!info.visited) elements.unlinked.push(await checkPool(id));
-    
+
     await window.appendLog('Assembling features...');
     // 5. Assemble Features
 
@@ -342,10 +318,10 @@ async function scanAddon() {
 
             // Errors (special handling)
             if (obj.errors && Object.keys(obj.errors).length) {
-                await logLine(`${indentStr(indent+1)}errors:`);
+                await logLine(`${indentStr(indent + 1)}errors:`);
                 for (const [code, sources] of Object.entries(obj.errors)) {
                     const src = Array.isArray(sources) ? sources.join(', ') : String(sources);
-                    await logLine(`${indentStr(indent+2)}${code}: ${src}`);
+                    await logLine(`${indentStr(indent + 2)}${code}: ${src}`);
                 }
             }
 
@@ -356,32 +332,32 @@ async function scanAddon() {
                 const parts = [];
                 if (desc) parts.push(`desc=${desc}`);
                 if (fmt) parts.push(`fmt=${fmt}`);
-                if (parts.length) await logLine(`${indentStr(indent+1)}data: ${parts.join(' | ')}`);
+                if (parts.length) await logLine(`${indentStr(indent + 1)}data: ${parts.join(' | ')}`);
             }
 
             // Iterate other keys and show nested objects/arrays
             for (const key of Object.keys(obj)) {
-                if (['identifier','type','filepath','version','errors','data'].includes(key)) continue;
+                if (['identifier', 'type', 'filepath', 'version', 'errors', 'data'].includes(key)) continue;
                 const val = obj[key];
                 if (val == null) continue;
                 if (Array.isArray(val)) {
                     if (val.length === 0) continue;
-                    await logLine(`${indentStr(indent+1)}${key}:`);
+                    await logLine(`${indentStr(indent + 1)}${key}:`);
                     for (const item of val) {
-                        if (typeof item === 'object') await logObject(item, indent+2);
-                        else await logLine(`${indentStr(indent+2)}- ${String(item)}`);
+                        if (typeof item === 'object') await logObject(item, indent + 2);
+                        else await logLine(`${indentStr(indent + 2)}- ${String(item)}`);
                     }
                 } else if (typeof val === 'object') {
-                    await logLine(`${indentStr(indent+1)}${key}:`);
-                    await logObject(val, indent+2);
+                    await logLine(`${indentStr(indent + 1)}${key}:`);
+                    await logObject(val, indent + 2);
                 } else {
-                    await logLine(`${indentStr(indent+1)}${key}: ${String(val)}`);
+                    await logLine(`${indentStr(indent + 1)}${key}: ${String(val)}`);
                 }
             }
         }
 
         await logLine('---- Scan Elements ----');
-        for (const section of ['structures','features','unlinked','unknown']) {
+        for (const section of ['structures', 'features', 'unlinked', 'unknown']) {
             const arr = elements[section] || [];
             await logLine(`${section} (${arr.length}):`);
             for (const el of arr) await logObject(el, 1);
