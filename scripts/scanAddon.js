@@ -8,7 +8,9 @@ async function scanAddon() {
 
     const elements = {
         structures: [],
+        structure_sets: [],
         features: [],
+        structure_pools: [],
         unlinked: [],
         unknown: []
     }
@@ -123,35 +125,29 @@ async function scanAddon() {
                         break;
                 }
                 feature.features.push(await checkFeature(checkId));
-                if (feature.features[feature.features.length - 1].errors.INVALID_FEATURE) {
-                    feature.errors.INVALID_SUB_FEATURE = [feature.features[feature.features.length - 1].identifier || feature.features[feature.features.length - 1].filepath];
-                } else validSubFeatures++;
+                const childFeature = feature.features[feature.features.length - 1];
+                if (!childFeature.errors.INVALID_FEATURE || childFeature.description?.identifier.startsWith('minecraft:')) validSubFeatures++;
             }
 
             if (validSubFeatures === 0) {
                 feature.errors.NO_VALID_SUB_FEATURES = [feature.filepath];
+                feature.errors.INVALID_FEATURE = [feature.filepath];
             }
-        } else if (['minecraft:scatter_feature', 'minecraft:search_feature'].includes(feature.elementType)) {
-            feature.subFeature = await checkFeature(featureInfo.data?.places_feature);
-            if (feature.subFeature.errors.INVALID_FEATURE) {
-                feature.errors.INVALID_SUB_FEATURE = [feature.subFeature.identifier || feature.subFeature.filepath];
-                feature.errors.INVALID_FEATURE = [feature.subFeature.identifier || feature.subFeature.filepath];
-            }
-        } else if (feature.elementType === 'minecraft:snap_to_surface_feature') {
-            feature.features.push(await checkFeature(featureInfo.data?.feature_to_snap));
-            const snapChild = feature.features[feature.features.length - 1];
-            if (snapChild.errors.INVALID_FEATURE) {
-                feature.errors.INVALID_SUB_FEATURE = [snapChild.identifier || snapChild.filepath];
-                feature.errors.INVALID_FEATURE = [snapChild.identifier || snapChild.filepath];
+        } else if (['minecraft:scatter_feature', 'minecraft:search_feature', 'minecraft:snap_to_surface_feature'].includes(feature.elementType)) {
+            const checkId = feature.elementType === 'minecraft:snap_to_surface_feature' ? featureInfo.data?.feature_to_snap : featureInfo.data?.places_feature;
+            feature.features.push(await checkFeature(checkId));
+            const childFeature = feature.features[feature.features.length - 1];
+            if (childFeature.errors.INVALID_FEATURE || childFeature.description?.identifier.startsWith('minecraft:')) {
+                feature.errors.INVALID_SUB_FEATURE = [feature.filepath];
+                feature.errors.INVALID_FEATURE = [feature.filepath];
             }
         } else if (feature.elementType === 'minecraft:structure_template_feature') {
             const structName = featureInfo.data?.structure_name?.split(':')?.pop();
-            if (!structName || !index.mcstructures.has(structName)) {
-                feature.errors.MISSING_STRUCTURE = [structName || feature.filepath];
-                feature.errors.INVALID_FEATURE = [structName || feature.filepath];
+            if (!structName || !index.mcstructures.has(structName) || structName.startsWith('minecraft:')) {
+                feature.errors.MISSING_STRUCTURE = [feature.filepath];
+                feature.errors.INVALID_FEATURE = [feature.filepath];
             } else feature.structure = index.mcstructures.get(structName);
-        } else feature.errors.UNCHECKED_FEATURE = [feature.filepath];
-        await window.appendLog(`Returning feature ${id}.`);
+        }
         return feature;
     };
 
@@ -179,20 +175,19 @@ async function scanAddon() {
                 validElements++;
             } else if (element.element?.element_type === 'minecraft:feature_pool_element') {
                 pool.elements.push(await checkFeature(element.element?.feature));
-                const child = pool.elements[pool.elements.length - 1];
-                await mergeErrors(pool, child);
-                if (await hasError(child, "INVALID_FEATURE")) {
-                    await addError(pool, "INVALID_POOL_ELEMENT", child.identifier || child.filepath);
+                if (pool.elements[pool.elements.length - 1].errors.INVALID_FEATURE) {
+                    pool.errors.INVALID_POOL_ELEMENT = [pool.filepath];
                 } else validElements++;
-            } else await addError(pool, "INVALID_POOL_ELEMENT", pool.filepath);
+            } else pool.errors.INVALID_POOL_ELEMENT = [pool.filepath];
         };
 
-        if (validElements === 0) await addError(pool, "NO_VALID_ELEMENTS", pool.filepath);
+        if (validElements === 0) pool.errors.NO_VALID_ELEMENTS = [pool.filepath];
 
         return pool;
     };
 
     // Helper: Structure Jigsaws
+
     async function checkJigsaw(id) {
         const jigsawInfo = index.jigsaws.get(id);
         if (!jigsawInfo) return { identifier: id, type: 'jigsaw', filepath: 'unknown', version: 'unknown', errors: { MISSING_JIGSAW: [] }, start_pool: null, pool_aliases: [] };
@@ -208,23 +203,23 @@ async function scanAddon() {
             pool_aliases: []
         };
 
-        if (!jigsaw.start_pool || await hasError(jigsaw.start_pool, "NO_VALID_ELEMENTS")) await addError(jigsaw, "INVALID_START_POOL", jigsaw.filepath);
+        if (!jigsaw.start_pool || jigsaw.start_pool.errors.NO_VALID_ELEMENTS) jigsaw.errors.INVALID_START_POOL = [jigsaw.filepath];
 
         for (const pool of jigsawInfo.data?.pool_aliases || []) {
             jigsaw.pool_aliases.push(await checkPool(pool));
 
-            const alias = jigsaw.pool_aliases[jigsaw.pool_aliases.length - 1];
-            if (await hasError(alias, "NO_VALID_ELEMENTS")) {
-                await mergeErrors(jigsaw, alias, alias.identifier || alias.filepath);
-                await addError(jigsaw, "INVALID_POOL_ALIAS", alias.identifier || alias.filepath);
+            if (jigsaw.pool_aliases[jigsaw.pool_aliases.length - 1].errors.NO_VALID_ELEMENTS) {
+                jigsaw.errors.INVALID_POOL_ALIAS = [jigsaw.filepath];
             }
         }
 
         return jigsaw;
     };
 
-    await window.appendLog('Assembling structure sets...');
     // 2. Assemble Structures
+
+    await window.appendLog('Assembling structure sets...');
+
     for (const [id, info] of index.structure_sets) {
         index.structure_sets.get(id).visited = true;
         let structure_set = {
@@ -241,16 +236,14 @@ async function scanAddon() {
         for (const jigsaw of info.data?.structures || []) {
             if (index.jigsaws.has(jigsaw.structure)) {
                 structure_set.jigsaws.push(await checkJigsaw(jigsaw.structure));
-                const child = structure_set.jigsaws[structure_set.jigsaws.length - 1];
-                await mergeErrors(structure_set, child);
-                if (!await hasError(child, "INVALID_START_POOL")) validJigsaws++;
+                if (!structure_set.jigsaws[structure_set.jigsaws.length - 1].errors.INVALID_START_POOL) validJigsaws++;
             }
         }
 
         if (validJigsaws > 0) {
             elements.structures.push(structure_set);
         } else {
-            await addError(structure_set, "NO_VALID_JIGSAWS", structure_set.filepath);
+            structure_set.errors.NO_VALID_JIGSAWS = [structure_set.filepath];
             elements.unlinked.push(structure_set);
         }
     };
@@ -261,14 +254,23 @@ async function scanAddon() {
 
     // 4. Check Orphaned Pools
 
-    for (const [id, info] of index.template_pools) if (!info.visited) elements.unlinked.push(await checkPool(id));
+    for (const [id, info] of index.template_pools) {
+        if (!info.visited) {
+            const pool = await checkPool(id);
+            if (Object.keys(pool.errors).length === 0) {
+                elements.structure_pools.push(pool);
+            } else {
+                elements.unlinked.push(pool);
+            }
+        }
+    }
+
+    // 5. Assemble Features
 
     await window.appendLog('Assembling features...');
-    // 5. Assemble Features
 
     for (const [id, info] of index.feature_rules) {
         index.feature_rules.get(id).visited = true;
-        await window.appendLog(`Feature rule ${id}`);
         const feature_rule = {
             identifier: id,
             type: 'feature_rule',
@@ -277,10 +279,8 @@ async function scanAddon() {
             errors: {},
             feature: await checkFeature(info.data?.description?.places_feature)
         };
-        await window.appendLog(`Feature rule ${id}: ${info.data?.description?.places_feature}, found feature: ${feature_rule.feature?.identifier}`);
-        await mergeErrors(feature_rule, feature_rule.feature);
-        if (!feature_rule.feature || await hasError(feature_rule.feature, "INVALID_FEATURE")) {
-            await addError(feature_rule, "INVALID_FEATURE_RULE", feature_rule.feature?.identifier || feature_rule.filepath);
+        if ((!feature_rule.feature || feature_rule.feature.errors.INVALID_FEATURE) && !info.data?.description?.places_feature.startsWith('minecraft:')) {
+            feature_rule.errors.INVALID_FEATURE_RULE = [feature_rule.filepath];
             elements.unlinked.push(feature_rule);
         } else elements.features.push(feature_rule);
     };
@@ -291,81 +291,6 @@ async function scanAddon() {
 
     await window.appendLog(`Scan completed in ${(Date.now() - scanStart) / 1000}s, found ${filesFound} files.\n
     Structures: ${elements.structures.length}, Features: ${elements.features.length}, Unlinked: ${elements.unlinked.length}, Unknown: ${elements.unknown.length}`);
-    // Pretty-print `elements` to the log with nesting and errors shown clearly.
-    async function prettyLogElements(elements) {
-        const indentStr = (n) => '  '.repeat(n);
-        const seen = new WeakSet();
-
-        async function logLine(line = '') { await window.appendLog(line); }
-
-        async function logObject(obj, indent = 0) {
-            if (obj == null) { await logLine(`${indentStr(indent)}<null>`); return; }
-            if (seen.has(obj)) { await logLine(`${indentStr(indent)}<circular>`); return; }
-            if (typeof obj !== 'object') { await logLine(`${indentStr(indent)}${String(obj)}`); return; }
-            seen.add(obj);
-
-            // Header: identifier/type/path/version if present
-            const header = [];
-            if (obj.identifier) header.push(`id=${obj.identifier}`);
-            if (obj.type) header.push(`type=${obj.type}`);
-            if (obj.filepath) header.push(`path=${obj.filepath}`);
-            if (obj.version) header.push(`ver=${obj.version}`);
-            if (header.length) {
-                await logLine(`${indentStr(indent)}- ${header.join(' | ')}`);
-            } else {
-                await logLine(`${indentStr(indent)}- object`);
-            }
-
-            // Errors (special handling)
-            if (obj.errors && Object.keys(obj.errors).length) {
-                await logLine(`${indentStr(indent + 1)}errors:`);
-                for (const [code, sources] of Object.entries(obj.errors)) {
-                    const src = Array.isArray(sources) ? sources.join(', ') : String(sources);
-                    await logLine(`${indentStr(indent + 2)}${code}: ${src}`);
-                }
-            }
-
-            // Human-friendly `data` summary (avoid dumping whole payload)
-            if (obj.data && typeof obj.data === 'object') {
-                const desc = obj.data.description?.identifier || obj.data.name;
-                const fmt = obj.data.format_version;
-                const parts = [];
-                if (desc) parts.push(`desc=${desc}`);
-                if (fmt) parts.push(`fmt=${fmt}`);
-                if (parts.length) await logLine(`${indentStr(indent + 1)}data: ${parts.join(' | ')}`);
-            }
-
-            // Iterate other keys and show nested objects/arrays
-            for (const key of Object.keys(obj)) {
-                if (['identifier', 'type', 'filepath', 'version', 'errors', 'data'].includes(key)) continue;
-                const val = obj[key];
-                if (val == null) continue;
-                if (Array.isArray(val)) {
-                    if (val.length === 0) continue;
-                    await logLine(`${indentStr(indent + 1)}${key}:`);
-                    for (const item of val) {
-                        if (typeof item === 'object') await logObject(item, indent + 2);
-                        else await logLine(`${indentStr(indent + 2)}- ${String(item)}`);
-                    }
-                } else if (typeof val === 'object') {
-                    await logLine(`${indentStr(indent + 1)}${key}:`);
-                    await logObject(val, indent + 2);
-                } else {
-                    await logLine(`${indentStr(indent + 1)}${key}: ${String(val)}`);
-                }
-            }
-        }
-
-        await logLine('---- Scan Elements ----');
-        for (const section of ['structures', 'features', 'unlinked', 'unknown']) {
-            const arr = elements[section] || [];
-            await logLine(`${section} (${arr.length}):`);
-            for (const el of arr) await logObject(el, 1);
-        }
-        await logLine('---- End Elements ----');
-    }
-
-    await prettyLogElements(elements);
 
     return elements;
 }
