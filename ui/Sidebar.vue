@@ -3,20 +3,23 @@
         <header class="d-flex align-center justify-space-between mb-4">
             <div>
                 <h1 class="text-h6 mb-1">Addon Builder</h1>
-                <p class="text-body-2 mb-0">Create and manage your addon elements.</p>
+                <p class="text-body-2 grey--text mb-0">Create and manage your addon elements.</p>
             </div>
             <v-btn icon color="tertiary" @click="showSettings = true">
                 <v-icon>mdi-cog</v-icon>
             </v-btn>
         </header>
 
-        <v-btn block color="primary" class="mb-4" depressed @click="scan()">Scan Project</v-btn>
+        <v-btn block color="primary" class="mb-4 rounded-lg" depressed large @click="scan()">
+            <v-icon left>mdi-magnify</v-icon>
+            Scan Project
+        </v-btn>
 
         <v-row>
             <v-col v-for="(group, key) in elements" :key="key" cols="12">
                 <!-- Check if group is object (structures/features) or array (unknown) -->
-                <v-card outlined class="rounded-lg">
-                    <div class="d-flex align-center py-2 px-3 select-none" @click="expanded[key] = !expanded[key]" style="cursor: pointer; user-select: none;">
+                <v-card outlined class="rounded-lg overflow-hidden">
+                    <div class="d-flex align-center py-2 px-3 select-none sidebarNavigation" @click="expanded[key] = !expanded[key]" style="cursor: pointer; user-select: none;">
                         <div class="d-flex align-center flex-grow-1">
                             <v-icon class="mr-3" color="primary">{{ elementInfo[key].icon }}</v-icon>
                             <div class="d-flex flex-column">
@@ -26,7 +29,7 @@
                         </div>
                         
                         <div class="d-flex align-center">
-                            <v-btn small color="primary" class="mr-2" @click.stop>
+                            <v-btn v-if="key !== 'unknown'" small color="primary" class="mr-2" @click.stop>
                                 <v-icon left small>mdi-plus</v-icon> Create New
                             </v-btn>
                             <v-icon color="grey">{{ expanded[key] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
@@ -34,14 +37,14 @@
                     </div>
 
                     <v-expand-transition>
-                        <div v-show="expanded[key]">
+                        <div v-show="expanded[key]" class="sidebarSelection">
                             <v-divider></v-divider>
                             <v-card-text class="pa-0">
                                 
                                 <!-- Case 1: Complex Group (Linked/Unlinked) -->
                                 <template v-if="!Array.isArray(group)">
                                     <!-- Linked Items -->
-                                    <v-list dense v-if="group.linked.length > 0">
+                                    <v-list dense v-if="group.linked.length > 0" color="transparent">
                                         <v-list-item v-for="item in group.linked" :key="item.identifier">
                                             <v-list-item-content>
                                                 <v-list-item-title class="d-flex align-center">
@@ -63,11 +66,11 @@
                                             <v-list-item-action class="flex-row">
                                                 <v-menu offset-y :close-on-content-click="false">
                                                     <template v-slot:activator="{ on, attrs }">
-                                                        <v-btn icon small color="tertiary" v-bind="attrs" v-on="on" @click="openFileTree(item)">
+                                                        <v-btn icon small color="primary" v-bind="attrs" v-on="on" @click="openFileTree(item)">
                                                             <v-icon small>mdi-file-tree</v-icon>
                                                         </v-btn>
                                                     </template>
-                                                    <v-card min-width="300" max-width="600" max-height="400" class="overflow-y-auto">
+                                                    <v-card min-width="320" max-width="600" max-height="400" class="overflow-y-auto rounded-lg background" outlined>
                                                         <v-treeview :items="treeItems" dense open-all hover>
                                                             <template v-slot:label="{ item }">
                                                                 <div class="d-flex align-center" @click.stop="item.path ? handleOpenFile(item.path) : null" :style="{ cursor: item.path ? 'pointer' : 'default' }">
@@ -102,8 +105,8 @@
                                     <!-- Unlinked Items Divider & List -->
                                     <div v-if="group.unlinked.length > 0">
                                         <v-divider v-if="group.linked.length > 0"></v-divider>
-                                        <v-subheader class="text-caption font-weight-bold text-uppercase mt-2">Unlinked</v-subheader>
-                                        <v-list dense>
+                                        <v-subheader class="text-caption font-weight-bold text-uppercase mt-2 primary--text" style="height: 32px;">Unlinked</v-subheader>
+                                        <v-list dense color="transparent">
                                             <v-list-item v-for="item in group.unlinked" :key="item.identifier">
                                                 <v-list-item-content>
                                                     <v-list-item-title class="d-flex align-center">
@@ -128,11 +131,11 @@
                                                  <v-list-item-action class="flex-row">
                                                     <v-menu offset-y :close-on-content-click="false">
                                                         <template v-slot:activator="{ on, attrs }">
-                                                            <v-btn icon small color="tertiary" v-bind="attrs" v-on="on" @click="openFileTree(item)">
+                                                            <v-btn icon small color="primary" v-bind="attrs" v-on="on" @click="openFileTree(item)">
                                                                 <v-icon small>mdi-file-tree</v-icon>
                                                             </v-btn>
                                                         </template>
-                                                        <v-card min-width="300" max-width="600" max-height="400" class="overflow-y-auto">
+                                                        <v-card min-width="320" max-width="600" max-height="400" class="overflow-y-auto rounded-lg background" outlined>
                                                             <v-treeview :items="treeItems" dense open-all hover>
                                                                 <template v-slot:label="{ item }">
                                                                     <div class="d-flex align-center" @click.stop="item.path ? handleOpenFile(item.path) : null" :style="{ cursor: item.path ? 'pointer' : 'default' }">
@@ -173,11 +176,11 @@
 
                                 <!-- Case 2: Simple Array (Unknown) -->
                                 <template v-else>
-                                    <v-list dense v-if="group.length > 0">
-                                        <v-list-item v-for="item in group" :key="item.path">
+                                    <v-list dense v-if="group.length > 0" color="transparent">
+                                        <v-list-item v-for="item in group" :key="item.path" @click="handleOpenFile(item.path)">
                                             <v-list-item-content>
-                                                <v-list-item-title class="error--text">{{ item.path.split(/[\\/]/).pop() }}</v-list-item-title>
-                                                <v-list-item-subtitle class="text-caption text--secondary">{{ item.errors ? Object.keys(item.errors).join(', ') : 'Unknown Error' }}</v-list-item-subtitle>
+                                                <v-list-item-title class="error--text font-weight-medium">{{ item.path.split(/[\\/]/).pop() }}</v-list-item-title>
+                                                <v-list-item-subtitle class="text-caption grey--text text--lighten-1">{{ item.errors ? Object.keys(item.errors).join(', ') : 'Unknown Error' }}</v-list-item-subtitle>
                                             </v-list-item-content>
                                         </v-list-item>
                                     </v-list>
@@ -194,7 +197,7 @@
         </v-row>
 
         <v-dialog v-model="showSettings" max-width="400">
-            <v-card>
+            <v-card class="sidebarNavigation">
                 <v-card-title class="d-flex justify-space-between align-center pb-1">
                     Settings
                     <v-btn icon @click="showSettings = false">

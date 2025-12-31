@@ -1,10 +1,12 @@
 {
     "name": "Addon Builder",
-    "description": "A visual interface to create addon elements easily, like with MCreator. Create structures, blocks, items, and entities with a user-friendly UI.",
+    "description": "A powerful addon editor that allows you to view, edit, and delete addon elements in the sidebar, or create new ones with a custom visual interface. No coding knowledge required, just fill out the required fields and click create.",
     "author": "NA7E",
     "version": "1.0.0",
     "id": "4b934600-957d-4281-b401-d254ddbd1aff",
-    "tags": ["Utility", "Presets"],
+    "tags": [
+        "Utility"
+    ],
     "target": "v2",
     "icon": "mdi-progress-wrench",
     "compatibleAppVersions": {

@@ -1,0 +1,5 @@
+{
+    "global": {
+        "identifier": "The identifier of the element. This is used to reference the element in other elements."
+    }
+}
