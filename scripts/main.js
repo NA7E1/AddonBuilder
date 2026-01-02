@@ -1,88 +1,58 @@
-const { create } = await require('@bridge/sidebar');
-const { Sidebar } = await require('@bridge/ui');
-const { getCurrentProject } = await require('@bridge/env');
+const sidebar = await require('@bridge/sidebar')
+const notification = await require('@bridge/notification')
+const ui = await require('@bridge/ui')
 const fs = await require('@bridge/fs');
-const { dirname } = await require('@bridge/path');
-const projectRoot = await getCurrentProject();
 
-create({
+const PATH = './extensions/AddonBuilder/resources';
+const LOG = `${PATH}/addonbuilder.log`
+const SETTINGS = `${PATH}/settings.json`
+const HELP = `${PATH}/helpText.json`;
+
+const readJson = async (path) => {
+    try {
+        if (!(await fs.fileExists(path))) return {};
+        const raw = await fs.readFile(path, 'utf8');
+        return JSON.parse(typeof raw === 'string' ? raw : await raw.text());
+    } catch (err) { return {} };
+};
+
+window.settings = { scanStructures: true, scanFeatures: true, scanUnknown: true, debugLogging: false };
+
+Object.assign(window.settings, await readJson(SETTINGS));
+window.helpText = await readJson(HELP);
+
+const logQueue = [];
+let isLogging = false;
+
+window.log = async (line, error) => {
+    if (error) {
+        console.error(`[AddonBuilder] ${line}`);
+        notification.createError(new Error(`AddonBuilder Error: ${line}`));
+    } else console.log(`[AddonBuilder] ${line}`);
+
+    if (window.settings.debugLogging) {
+        logQueue.push(line);
+        if (isLogging) return;
+        isLogging = true;
+        try {
+            while (logQueue.length > 0) {
+                const raw = await fs.readFile(LOG, 'utf8').catch(() => '');
+                const existing = typeof raw === 'string' ? raw : (await raw?.text?.()) || '';
+                await fs.writeFile(LOG, existing + `${new Date().toISOString()}: ${logQueue.shift()}\n`);
+            }
+        } catch (err) { window.log(`Log Error: ${err.message}`, true); }
+        isLogging = false;
+    }
+};
+
+if (window.settings.debugLogging) await fs.writeFile(LOG, `${new Date().toISOString()}: Addon Builder started\n`);
+else if (await fs.fileExists(LOG)) await fs.unlink(LOG);
+
+sidebar.create({
     id: 'NA7E.addonBuilder.sidebar',
     displayName: 'Addon Builder',
     icon: 'mdi-progress-wrench',
-    component: Sidebar
+    component: ui.Sidebar
 });
 
-const EXT_PATH = (await fs.fileExists(`${projectRoot}/.bridge/extensions/AddonBuilder/manifest.json`))
-    ? `${projectRoot}/.bridge/extensions/AddonBuilder`
-    : 'extensions/AddonBuilder';
-
-const LOG_PATH = `${EXT_PATH}/addonbuilder.log`;
-const SETTINGS_PATH = `${EXT_PATH}/settings.json`;
-
-const defaultSettings = {
-    scanStructures: true,
-    scanFeatures: true,
-    scanUnknown: true,
-    debugLogging: false
-};
-
-let settings = defaultSettings;
-try {
-    if (await fs.fileExists(SETTINGS_PATH)) {
-        const raw = await fs.readFile(SETTINGS_PATH, 'utf8');
-        const text = typeof raw === 'string' ? raw : await raw.text();
-        settings = { ...defaultSettings, ...JSON.parse(text) };
-    }
-} catch (e) {
-    console.error('Failed to load settings:', e);
-}
-
-window.addonBuilderSettings = settings;
-
-if (settings.debugLogging) {
-    await fs.writeFile(LOG_PATH, `${new Date().toISOString()}: Addon Builder started\n`);
-} else {
-    try {
-        if (await fs.fileExists(LOG_PATH)) await fs.unlink(LOG_PATH);
-    } catch (e) { }
-}
-
-const logQueue = [];
-let isWriting = false;
-
-window.appendLog = async function (line) {
-    if (!window.addonBuilderSettings || !window.addonBuilderSettings.debugLogging) return;
-    console.log(`[AddonBuilder] ${line}`);
-    return new Promise((resolve) => {
-        logQueue.push({ line, resolve });
-        processLogQueue();
-    });
-}
-
-async function processLogQueue() {
-    if (isWriting || logQueue.length === 0) return;
-    isWriting = true;
-
-    while (logQueue.length > 0) {
-        const { line, resolve } = logQueue.shift();
-        try {
-            let existing = '';
-            try {
-                if (await fs.fileExists(LOG_PATH)) {
-                    const raw = await fs.readFile(LOG_PATH, 'utf8');
-                    existing = (typeof raw === 'string' ? raw : (await raw?.text?.()) || raw) || '';
-                }
-            } catch (e) { }
-            await fs.writeFile(LOG_PATH, existing + `${new Date().toISOString()}: ${String(line)}\n`);
-        } catch (e) {
-            console.error('Failed to write to log:', e);
-        }
-        resolve();
-    }
-
-    isWriting = false;
-}
-
-window.addEventListener('unhandledrejection', async (event) => {
-    await window.appendLog(`Unhandled Rejection: ${String(event.reason)}`);
-});
+window.addEventListener('unhandledrejection', err => window.log(`Unhandled Rejection: ${err.reason}`, true));

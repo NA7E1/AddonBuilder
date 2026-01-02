@@ -1,16 +1,18 @@
-const { getCurrentProject } = await require('@bridge/env');
+const env = await require('@bridge/env');
 const fs = await require('@bridge/fs');
-const { join } = await require('@bridge/path');
-const projectRoot = await getCurrentProject();
+const path = await require('@bridge/path');
+const { getCurrentProject } = env;
+const { join } = path;
 
 async function scanAddon() {
-    await window.appendLog('Starting addon scan...');
+    const projectRoot = await getCurrentProject();
+    await window.log('Starting addon scan...');
 
     const elements = {
         structures: { linked: [], unlinked: [] },
         features: { linked: [], unlinked: [] },
         unknown: []
-    }
+    };
 
     const index = {
         mcstructures: new Map(),
@@ -29,7 +31,7 @@ async function scanAddon() {
     async function scan(type, dir, map) {
         let entries;
         try { entries = await fs.readdir(dir); } catch (err) {
-            await window.appendLog(`Error reading dir ${dir}: ${err.message}`);
+            await window.log(`Error reading dir ${dir}: ${err.message}`, true);
             return;
         }
 
@@ -60,7 +62,7 @@ async function scanAddon() {
                         elements.unknown.push({ path: filePath, errors: { MISSING_IDENTIFIER: [filePath] } });
                     }
                 } catch (err) {
-                    await window.appendLog(`Error: ${filePath} - ${err.message}`);
+                    await window.log(`Error: ${filePath} - ${err.message}`);
                 }
                 filesFound++;
             } else {
@@ -68,20 +70,32 @@ async function scanAddon() {
                 filesFound++;
             }
         }
-    };
+    }
 
     // 1. Index Files
 
-    await Promise.all([
-        scan('mcstructure', join(projectRoot, 'BP', 'structures'), index.mcstructures),
-        scan('structure_set', join(projectRoot, 'BP', 'worldgen', 'structure_sets'), index.structure_sets),
-        scan('jigsaw', join(projectRoot, 'BP', 'worldgen', 'structures'), index.jigsaws),
-        scan('template_pool', join(projectRoot, 'BP', 'worldgen', 'template_pools'), index.template_pools),
-        scan('feature', join(projectRoot, 'BP', 'features'), index.features),
-        scan('feature_rules', join(projectRoot, 'BP', 'feature_rules'), index.feature_rules)
-    ]);
+    const tasks = [
+        scan('mcstructure', join(projectRoot, 'BP', 'structures'), index.mcstructures)
+    ];
 
-    await window.appendLog(`Indexing complete: mcstructures=${index.mcstructures.size}, structure_sets=${index.structure_sets.size}, jigsaws=${index.jigsaws.size}, pools=${index.template_pools.size}, features=${index.features.size}, feature_rules=${index.feature_rules.size}, unknown=${elements.unknown.length}`);
+    if (window.settings.scanStructures) {
+        tasks.push(
+            scan('structure_set', join(projectRoot, 'BP', 'worldgen', 'structure_sets'), index.structure_sets),
+            scan('jigsaw', join(projectRoot, 'BP', 'worldgen', 'structures'), index.jigsaws),
+            scan('template_pool', join(projectRoot, 'BP', 'worldgen', 'template_pools'), index.template_pools)
+        );
+    }
+
+    if (window.settings.scanFeatures) {
+        tasks.push(
+            scan('feature', join(projectRoot, 'BP', 'features'), index.features),
+            scan('feature_rules', join(projectRoot, 'BP', 'feature_rules'), index.feature_rules)
+        );
+    }
+
+    await Promise.all(tasks);
+
+    await window.log(`Indexing complete: mcstructures=${index.mcstructures.size}, structure_sets=${index.structure_sets.size}, jigsaws=${index.jigsaws.size}, pools=${index.template_pools.size}, features=${index.features.size}, feature_rules=${index.feature_rules.size}, unknown=${elements.unknown.length}`);
 
     // Helper: Features
 
@@ -120,7 +134,7 @@ async function scanAddon() {
                 }
                 feature.features.push(await checkFeature(checkId));
                 const childFeature = feature.features[feature.features.length - 1];
-                if (!childFeature.errors.INVALID_FEATURE || childFeature.description?.identifier.startsWith('minecraft:')) validSubFeatures++;
+                if (!childFeature.errors.INVALID_FEATURE || childFeature.description?.identifier?.startsWith('minecraft:')) validSubFeatures++;
             }
 
             if (validSubFeatures === 0) {
@@ -135,7 +149,7 @@ async function scanAddon() {
             const child = await checkFeature(checkId);
             feature.features.push(child);
 
-            if (child.errors.INVALID_FEATURE || child.description?.identifier.startsWith('minecraft:')) {
+            if (child.errors.INVALID_FEATURE || child.description?.identifier?.startsWith('minecraft:')) {
                 feature.errors.INVALID_SUB_FEATURE = [feature.path];
                 feature.errors.INVALID_FEATURE = [feature.path];
             }
@@ -147,7 +161,7 @@ async function scanAddon() {
             } else feature.structure = index.mcstructures.get(structName);
         }
         return feature;
-    };
+    }
 
     // Helper: Structure Pools
 
@@ -177,12 +191,12 @@ async function scanAddon() {
                     pool.errors.INVALID_POOL_ELEMENT = [pool.path];
                 } else validElements++;
             } else pool.errors.INVALID_POOL_ELEMENT = [pool.path];
-        };
+        }
 
         if (validElements === 0) pool.errors.NO_VALID_ELEMENTS = [pool.path];
 
         return pool;
-    };
+    }
 
     // Helper: Structure Jigsaws
 
@@ -212,11 +226,11 @@ async function scanAddon() {
         }
 
         return jigsaw;
-    };
+    }
 
     // 2. Assemble Structures
 
-    await window.appendLog('Assembling structure sets...');
+    await window.log('Assembling structure sets...');
 
     for (const [id, info] of index.structure_sets) {
         index.structure_sets.get(id).visited = true;
@@ -244,7 +258,7 @@ async function scanAddon() {
             structure_set.errors.NO_VALID_JIGSAWS = [structure_set.path];
             elements.structures.unlinked.push(structure_set);
         }
-    };
+    }
 
     // 3. Check Orphaned Jigsaws
 
@@ -256,7 +270,7 @@ async function scanAddon() {
 
     // 5. Assemble Features
 
-    await window.appendLog('Assembling features...');
+    await window.log('Assembling features...');
 
     for (const [id, info] of index.feature_rules) {
         index.feature_rules.get(id).visited = true;
@@ -272,14 +286,14 @@ async function scanAddon() {
             feature_rule.errors.INVALID_FEATURE_RULE = [feature_rule.path];
             elements.features.unlinked.push(feature_rule);
         } else elements.features.linked.push(feature_rule);
-    };
+    }
 
     // 6. Check Orphaned Features
 
     for (const [id, info] of index.features) if (!info.visited) elements.features.unlinked.push(await checkFeature(id));
 
-    await window.appendLog(`Scan completed in ${(Date.now() - scanStart) / 1000}s, found ${filesFound} files.\n
-    Structures: L=${elements.structures.linked.length}/U=${elements.structures.unlinked.length}, Features: L=${elements.features.linked.length}/U=${elements.features.unlinked.length}, Unknown: ${elements.unknown.length}`);
+    await window.log(`Scan completed in ${(Date.now() - scanStart) / 1000}s, found ${filesFound} files.`);
+    await window.log(`Structures: L=${elements.structures.linked.length}/U=${elements.structures.unlinked.length}, Features: L=${elements.features.linked.length}/U=${elements.features.unlinked.length}, Unknown: ${elements.unknown.length}`);
 
     return elements;
 }

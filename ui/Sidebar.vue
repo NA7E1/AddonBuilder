@@ -29,7 +29,7 @@
                         </div>
                         
                         <div class="d-flex align-center">
-                            <v-btn v-if="key !== 'unknown'" small color="primary" class="mr-2" @click.stop>
+                            <v-btn v-if="key !== 'unknown'" small color="primary" class="mr-2" @click.stop="createElement(key)">
                                 <v-icon left small>mdi-plus</v-icon> Create New
                             </v-btn>
                             <v-icon color="grey">{{ expanded[key] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
@@ -45,7 +45,7 @@
                                 <template v-if="!Array.isArray(group)">
                                     <!-- Linked Items -->
                                     <v-list dense v-if="group.linked.length > 0" color="transparent">
-                                        <v-list-item v-for="item in group.linked" :key="item.identifier">
+                                        <v-list-item v-for="item in group.linked" :key="item.identifier" @click="openEditor(item, key)">
                                             <v-list-item-content>
                                                 <v-list-item-title class="d-flex align-center">
                                                     {{ item.identifier.split(':').pop() }}
@@ -107,7 +107,7 @@
                                         <v-divider v-if="group.linked.length > 0"></v-divider>
                                         <v-subheader class="text-caption font-weight-bold text-uppercase mt-2 primary--text" style="height: 32px;">Unlinked</v-subheader>
                                         <v-list dense color="transparent">
-                                            <v-list-item v-for="item in group.unlinked" :key="item.identifier">
+                                            <v-list-item v-for="item in group.unlinked" :key="item.identifier" @click="openEditor(item, key)">
                                                 <v-list-item-content>
                                                     <v-list-item-title class="d-flex align-center">
                                                         {{ item.identifier.split(':').pop() }}
@@ -227,7 +227,7 @@
 export default  {
     data: () => ({
         showSettings: false,
-        settings: window.addonBuilderSettings || {
+        settings: window.settings || {
             scanStructures: true,
             scanFeatures: true,
             scanUnknown: true,
@@ -248,18 +248,8 @@ export default  {
             structures: {name: "Structures", icon: "mdi-office-building"},
             features: {name: "Features", icon: "mdi-tree"},
             unknown: {name: "Unknown", icon: "mdi-file-cancel"}
-        }
+        },
     }),
-
-    created() {
-        this.bridge = {
-            fs: null,
-            tab: null,
-            path: null,
-            env: null,
-            projectRoot: null
-        };
-    },
 
     watch: {
         settings: {
@@ -269,14 +259,18 @@ export default  {
     },
 
     async mounted() {
-        this.bridge.fs = await require('@bridge/fs');
-        this.bridge.tab = await require('@bridge/tab');
-        this.bridge.path = await require('@bridge/path');
-        this.bridge.env = await require('@bridge/env');
+        this.bridge = {
+            fs: await require('@bridge/fs'),
+            tab: await require('@bridge/tab'),
+            path: await require('@bridge/path'),
+            env: await require('@bridge/env'),
+            ui: await require('@bridge/ui'),
+        };
         this.bridge.projectRoot = await this.bridge.env.getCurrentProject();
+
+        await window.log("Sidebar mounted.");
+
         this.elements = await window.scanAddon();
-        
-        await window.appendLog("Sidebar mounted");
     },
 
     methods: {
@@ -289,8 +283,45 @@ export default  {
             try {
                 await this.bridge.tab.openFilePath(path.slice(this.bridge.projectRoot.length + 1), true);
             } catch (err) {
-                await window.appendLog(`Error opening file ${path}: ${err.message}`);
+                await window.log(`Error opening file ${path}: ${err.message}`, true);
             }
+        },
+
+        async createElement(type) {
+            try {
+                await this.openEditor({ identifier: (await this.bridge.env.getProjectPrefix()) + ':new_' + type.slice(0, -1) }, type);
+            } catch (err) {
+                await window.log(`Error creating element: ${err.message}`, true);
+            }
+        },
+
+        async openEditor(item, type) {
+            const info = this.elementInfo[type];
+
+            const editorComponent = this.bridge.ui[`${info.name.slice(0, -1)}Editor`];
+            if (!editorComponent) {
+                await window.log(`Error: Editor component '${info.name.slice(0, -1)}Editor' not found.`, true);
+                return;
+            }
+
+
+            class ElementEditor extends this.bridge.tab.ContentTab {
+                id = item.identifier;
+                type = 'NA7E.addonBuilder.elementEditor';
+                component = editorComponent;
+                props = { item };
+                isTemporary = false;
+
+                async is(other) { return other.id === this.id; }
+                async isFor(other) { return other.id === this.id; }
+
+                get icon() { return info.icon; }
+                get iconColor() { return 'primary'; }
+                get name() { return this.id.split(':').pop(); }
+            };
+
+            await window.log(`Opening ${type.slice(0, -1)} editor for: ${item.identifier}`);
+            await this.bridge.tab.addTab(new ElementEditor(this.bridge.tab.getCurrentTabSystem()));
         },
         
         async deleteItem(item) {
@@ -298,14 +329,14 @@ export default  {
             
             try {
                 await this.bridge.fs.unlink(item.path);
-                await window.appendLog(`Deleted file: ${item.path}`);
+                await window.log(`Deleted file: ${item.path}`);
 
                 let dir = this.bridge.path.dirname(item.path);
                 while (dir.startsWith(this.bridge.projectRoot) && dir !== this.bridge.projectRoot) {
                     const files = await this.bridge.fs.readdir(dir);
                     if (files.length === 0) {
                         await this.bridge.fs.unlink(dir);
-                        await window.appendLog(`Deleted empty dir: ${dir}`);
+                        await window.log(`Deleted empty dir: ${dir}`);
                         dir = this.bridge.path.dirname(dir);
                     } else {
                         break;
@@ -313,7 +344,7 @@ export default  {
                 }
                 await this.scan();
             } catch (err) {
-                await window.appendLog(`Error deleting ${item.path}: ${err.message}`);
+                await window.log(`Error deleting ${item.path}: ${err.message}`, true);
             }
         },
 
@@ -362,18 +393,8 @@ export default  {
         },
 
         async saveSettings() {
-            try {
-                window.addonBuilderSettings = this.settings;
-                const fs = this.bridge.fs;
-                const EXTP = (await fs.fileExists(`${this.bridge.projectRoot}/.bridge/extensions/AddonBuilder/manifest.json`)) 
-                    ? `${this.bridge.projectRoot}/.bridge/extensions/AddonBuilder` 
-                    : 'extensions/AddonBuilder';
-                const SET_P = `${EXTP}/settings.json`;
-                
-                await fs.writeFile(SET_P, JSON.stringify(this.settings, null, 4));
-            } catch (err) {
-                console.error('Failed to save settings:', err);
-            }
+            window.settings = this.settings;
+            await this.bridge.fs.writeFile("./extensions/AddonBuilder/resources/settings.json", JSON.stringify(this.settings, null, 4));
         }
     }
 };
