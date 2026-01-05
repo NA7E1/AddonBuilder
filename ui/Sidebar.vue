@@ -17,7 +17,6 @@
 
         <v-row>
             <v-col v-for="(group, key) in elements" :key="key" cols="12">
-                <!-- Check if group is object (structures/features) or array (unknown) -->
                 <v-card outlined class="rounded-lg overflow-hidden">
                     <div class="d-flex align-center py-2 px-3 select-none sidebarNavigation" @click="expanded[key] = !expanded[key]" style="cursor: pointer; user-select: none;">
                         <div class="d-flex align-center flex-grow-1">
@@ -41,9 +40,7 @@
                             <v-divider></v-divider>
                             <v-card-text class="pa-0">
                                 
-                                <!-- Case 1: Complex Group (Linked/Unlinked) -->
                                 <template v-if="!Array.isArray(group)">
-                                    <!-- Linked Items -->
                                     <v-list dense v-if="group.linked.length > 0" color="transparent">
                                         <v-list-item v-for="item in group.linked" :key="item.identifier" @click="openEditor(item, key)">
                                             <v-list-item-content>
@@ -54,8 +51,8 @@
                                                             <v-icon small color="error" class="ml-2" v-bind="attrs" v-on="on">mdi-alert-circle</v-icon>
                                                         </template>
                                                         <div class="d-flex flex-column text-left">
-                                                            <div v-for="(errs, k) in item.errors" :key="k">
-                                                                <strong>{{ k }}:</strong> {{ Array.isArray(errs) ? errs.join(', ') : errs }}
+                                                            <div v-for="(errors, type) in item.errors" :key="type">
+                                                                <strong>{{ type }}:</strong> {{ Array.isArray(errors) ? errors.join(', ') : errors }}
                                                             </div>
                                                         </div>
                                                     </v-tooltip>
@@ -79,8 +76,8 @@
                                                                              <v-icon small color="error" class="mr-2" v-bind="attrs" v-on="on">mdi-alert-circle</v-icon>
                                                                         </template>
                                                                         <div class="text-left">
-                                                                            <div v-for="(errs, key) in item.errors" :key="key">
-                                                                                <strong>{{ key }}:</strong> {{ Array.isArray(errs) ? errs.join(', ') : errs }}
+                                                                            <div v-for="(errors, type) in item.errors" :key="type">
+                                                                                <strong>{{ type }}:</strong> {{ Array.isArray(errors) ? errors.join(', ') : errors }}
                                                                             </div>
                                                                         </div>
                                                                     </v-tooltip>
@@ -102,7 +99,6 @@
                                         </v-list-item>
                                     </v-list>
 
-                                    <!-- Unlinked Items Divider & List -->
                                     <div v-if="group.unlinked.length > 0">
                                         <v-divider v-if="group.linked.length > 0"></v-divider>
                                         <v-subheader class="text-caption font-weight-bold text-uppercase mt-2 primary--text" style="height: 32px;">Unlinked</v-subheader>
@@ -116,8 +112,8 @@
                                                                 <v-icon small color="error" class="ml-2" v-bind="attrs" v-on="on">mdi-alert-circle</v-icon>
                                                             </template>
                                                             <div class="d-flex flex-column text-left">
-                                                                <div v-for="(errs, k) in item.errors" :key="k">
-                                                                    <strong>{{ k }}:</strong> {{ Array.isArray(errs) ? errs.join(', ') : errs }}
+                                                                <div v-for="(errors, type) in item.errors" :key="type">
+                                                                    <strong>{{ type }}:</strong> {{ Array.isArray(errors) ? errors.join(', ') : errors }}
                                                                 </div>
                                                             </div>
                                                         </v-tooltip>
@@ -144,8 +140,8 @@
                                                                                  <v-icon small color="error" class="mr-2" v-bind="attrs" v-on="on">mdi-alert-circle</v-icon>
                                                                             </template>
                                                                             <div class="text-left">
-                                                                                <div v-for="(errs, key) in item.errors" :key="key">
-                                                                                    <strong>{{ key }}:</strong> {{ Array.isArray(errs) ? errs.join(', ') : errs }}
+                                                                                <div v-for="(errors, type) in item.errors" :key="type">
+                                                                                    <strong>{{ type }}:</strong> {{ Array.isArray(errors) ? errors.join(', ') : errors }}
                                                                                 </div>
                                                                             </div>
                                                                         </v-tooltip>
@@ -168,13 +164,11 @@
                                         </v-list>
                                     </div>
 
-                                    <!-- Empty State -->
                                     <div v-if="group.linked.length === 0 && group.unlinked.length === 0" class="pa-4 text-center text--secondary text-caption">
                                         No items found.
                                     </div>
                                 </template>
 
-                                <!-- Case 2: Simple Array (Unknown) -->
                                 <template v-else>
                                     <v-list dense v-if="group.length > 0" color="transparent">
                                         <v-list-item v-for="item in group" :key="item.path" @click="handleOpenFile(item.path)">
@@ -224,26 +218,13 @@
 </template>
 
 <script>
-export default  {
+export default {
     data: () => ({
         showSettings: false,
-        settings: window.settings || {
-            scanStructures: true,
-            scanFeatures: true,
-            scanUnknown: true,
-            debugLogging: false
-        },
-        expanded: {
-            structures: true,
-            features: true,
-            unknown: true
-        },
+        elements: { structures: { linked: [], unlinked: [] }, features: { linked: [], unlinked: [] }, unknown: [] },
+        settings: window.settings || { scanStructures: true, scanFeatures: true, scanUnknown: true, debugLogging: false },
+        expanded: { structures: true, features: true, unknown: true },
         treeItems: [],
-        elements: {
-            structures: { linked: [], unlinked: [] },
-            features: { linked: [], unlinked: [] },
-            unknown: []
-        },
         elementInfo: {
             structures: {name: "Structures", icon: "mdi-office-building"},
             features: {name: "Features", icon: "mdi-tree"},
@@ -252,10 +233,7 @@ export default  {
     }),
 
     watch: {
-        settings: {
-            handler: 'saveSettings',
-            deep: true
-        }
+        settings: { handler: 'saveSettings', deep: true }
     },
 
     async mounted() {
@@ -267,129 +245,85 @@ export default  {
             ui: await require('@bridge/ui'),
         };
         this.bridge.projectRoot = await this.bridge.env.getCurrentProject();
-
-        await window.log("Sidebar mounted.");
-
+        if (!window.scanAddon) await require('../scripts/scanAddon.js').catch(() => {});
         this.elements = await window.scanAddon();
     },
 
     methods: {
-        async scan() {
-            this.elements = await window.scanAddon();
-        },
+        async scan() { this.elements = await window.scanAddon(); },
 
         async handleOpenFile(path) {
             if (!path) return;
-            try {
-                await this.bridge.tab.openFilePath(path.slice(this.bridge.projectRoot.length + 1), true);
-            } catch (err) {
-                await window.log(`Error opening file ${path}: ${err.message}`, true);
-            }
+            try { await this.bridge.tab.openFilePath(path.slice(this.bridge.projectRoot.length + 1), true); }
+            catch (error) { await window.log(`Error opening file ${path}: ${error.message}`, true); }
         },
 
         async createElement(type) {
-            try {
-                await this.openEditor({ identifier: (await this.bridge.env.getProjectPrefix()) + ':new_' + type.slice(0, -1) }, type);
-            } catch (err) {
-                await window.log(`Error creating element: ${err.message}`, true);
-            }
+            try { await this.openEditor({ identifier: (await this.bridge.env.getProjectPrefix()) + ':new_' + type.slice(0, -1) }, type); }
+            catch (error) { await window.log(`Error creating element: ${error.message}`, true); }
         },
 
         async openEditor(item, type) {
-            const info = this.elementInfo[type];
-
-            const editorComponent = this.bridge.ui[`${info.name.slice(0, -1)}Editor`];
-            if (!editorComponent) {
-                await window.log(`Error: Editor component '${info.name.slice(0, -1)}Editor' not found.`, true);
-                return;
-            }
-
+            const info = this.elementInfo[type], editorComponent = this.bridge.ui[`${info.name.slice(0, -1)}Editor`];
+            if (!editorComponent) return window.log(`Error: Editor component '${info.name.slice(0, -1)}Editor' not found.`, true);
 
             class ElementEditor extends this.bridge.tab.ContentTab {
-                id = item.identifier;
-                type = 'NA7E.addonBuilder.elementEditor';
-                component = editorComponent;
-                props = { item };
-                isTemporary = false;
-
-                async is(other) { return other.id === this.id; }
-                async isFor(other) { return other.id === this.id; }
-
-                get icon() { return info.icon; }
-                get iconColor() { return 'primary'; }
-                get name() { return this.id.split(':').pop(); }
+                component = editorComponent; type = 'NA7E.addonBuilder.elementEditorV2'; 
+                id = item.identifier; item = item; isTemporary = false;
+                constructor(tabSystem) { super(tabSystem, item.identifier, true) }
+                async is(other) { return other && other.id === this.id }
+                async isFor(other) { return other && other.id === this.id }
+                get icon() { return info.icon }
+                get iconColor() { return 'primary' }
+                get name() { return this.id.split(':').pop() }
             };
-
-            await window.log(`Opening ${type.slice(0, -1)} editor for: ${item.identifier}`);
             await this.bridge.tab.addTab(new ElementEditor(this.bridge.tab.getCurrentTabSystem()));
         },
         
         async deleteItem(item) {
             if (!item.path) return;
-            
             try {
                 await this.bridge.fs.unlink(item.path);
-                await window.log(`Deleted file: ${item.path}`);
-
-                let dir = this.bridge.path.dirname(item.path);
-                while (dir.startsWith(this.bridge.projectRoot) && dir !== this.bridge.projectRoot) {
-                    const files = await this.bridge.fs.readdir(dir);
-                    if (files.length === 0) {
-                        await this.bridge.fs.unlink(dir);
-                        await window.log(`Deleted empty dir: ${dir}`);
-                        dir = this.bridge.path.dirname(dir);
-                    } else {
-                        break;
-                    }
+                let currentDir = this.bridge.path.dirname(item.path);
+                while (currentDir.startsWith(this.bridge.projectRoot) && currentDir !== this.bridge.projectRoot) {
+                    const files = await this.bridge.fs.readdir(currentDir);
+                    if (files.length === 0) { await this.bridge.fs.unlink(currentDir); currentDir = this.bridge.path.dirname(currentDir); }
+                    else break;
                 }
                 await this.scan();
-            } catch (err) {
-                await window.log(`Error deleting ${item.path}: ${err.message}`, true);
-            }
+            } catch (error) { await window.log(`Error deleting ${item.path}: ${error.message}`, true); }
         },
 
         async openFileTree(rootItem) {
-            const buildTree = (item, idPrefix) => {
-                const node = {
-                    id: idPrefix,
-                    name: item.identifier || 'Unknown',
-                    path: item.path,
-                    children: [],
-                    hasError: item.errors && Object.keys(item.errors).length > 0,
-                    errors: item.errors
-                };
-
-                const childTypes = [
-                    { prop: 'features', prefix: 'f' },
-                    { prop: 'jigsaws', prefix: 'j' },
-                    { prop: 'elements', prefix: 'e' },
-                    { prop: 'pool_aliases', prefix: 'pa' }
-                ];
-
-                childTypes.forEach(({ prop, prefix }) => {
-                    if (item[prop] && item[prop].length) {
-                        item[prop].forEach((child, idx) => node.children.push(buildTree(child, `${idPrefix}-${prefix}${idx}`)));
-                    }
-                });
-
-                if (item.structure) {
-                    node.children.push({
-                        id: `${idPrefix}-s`,
-                        name: item.structure.identifier || item.structure.path?.split(/[\\/]/).pop() || 'Structure',
-                        path: item.structure.path,
-                        children: [],
-                        hasError: false
-                    });
-                }
-
-                if (item.start_pool) {
-                    node.children.push(buildTree(item.start_pool, `${idPrefix}-sp`));
-                }
-
-                return node;
+            const index = window.addonIndex, hasErrors = (item) => item?.errors && Object.keys(item.errors).length > 0;
+            const resolveIdentifier = (identifier, typeMap) => {
+                if (!identifier || typeof identifier !== 'string') return null;
+                const found = (typeMap ? index[typeMap]?.get(identifier) : null) || index.features.get(identifier) || index.mcstructures.get(identifier) || index.jigsaws.get(identifier) || index.template_pools.get(identifier);
+                const resolvedItem = found?.checked || found;
+                return resolvedItem ? { ...resolvedItem, name: identifier } : { name: identifier, errors: identifier.startsWith('minecraft:') ? {} : { UNKNOWN_ID: [identifier] } };
             };
 
-            this.treeItems = [buildTree(rootItem, 'root')];
+            const buildNode = (item, prefix) => {
+                const node = { id: prefix, name: item.identifier || item.name || 'Unknown', path: item.path, children: [], hasError: hasErrors(item), errors: item.errors };
+                
+                const arrayProps = [{ prop: 'features', map: 'features' }, { prop: 'jigsaws', map: 'jigsaws' }, { prop: 'elements' }, { prop: 'pool_aliases', map: 'template_pools' }];
+                arrayProps.forEach(({ prop, map }, itemIndex) => 
+                    (item[prop] || []).forEach((identifier, childIndex) => {
+                        const child = resolveIdentifier(identifier, map);
+                        if (child) node.children.push(buildNode(child, `${prefix}-${itemIndex}-${childIndex}`));
+                    })
+                );
+
+                const singleProps = [{ prop: 'structure', map: 'mcstructures' }, { prop: 'start_pool', map: 'template_pools' }, { prop: 'fallback_pool', map: 'template_pools' }, { prop: 'feature', map: 'features' }];
+                singleProps.forEach(({ prop, map }, itemIndex) => {
+                    if (item[prop]) {
+                        const child = resolveIdentifier(item[prop], map) || (prop === 'structure' ? resolveIdentifier(item[prop], 'jigsaws') : null);
+                        if (child) node.children.push(buildNode(child, `${prefix}-s${itemIndex}`));
+                    }
+                });
+                return node;
+            };
+            this.treeItems = [buildNode(rootItem, 'root')];
         },
 
         async saveSettings() {

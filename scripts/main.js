@@ -45,6 +45,23 @@ window.log = async (line, error) => {
     }
 };
 
+window.parseJSON = async (path) => {
+    const raw = await fs.readFile(path, 'utf8');
+    const text = typeof raw === 'string' ? raw : await raw.text();
+    const cleaned = text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/,\s*([}\]])/g, '$1');
+    return JSON.parse(cleaned);
+};
+
+window.mergeJSON = async (target, source) => {
+    for (const key in source) {
+        const value = source[key];
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            target[key] = await window.mergeJSON(target[key] || {}, value);
+        } else target[key] = value;
+    }
+    return target;
+};
+
 if (window.settings.debugLogging) await fs.writeFile(LOG, `${new Date().toISOString()}: Addon Builder started\n`);
 else if (await fs.fileExists(LOG)) await fs.unlink(LOG);
 

@@ -1,0 +1,21 @@
+{
+    "format_version": "1.21.20",
+    "minecraft:structure_set": {
+        "description": {
+            "identifier": "namespace:default_structure_set"
+        },
+        "placement": {
+            "type": "minecraft:random_spread",
+            "salt": 12345678,
+            "separation": 8,
+            "spacing": 34,
+            "spread_type": "linear"
+        },
+        "structures": [
+            {
+                "structure": "namespace:default_jigsaw",
+                "weight": 1
+            }
+        ]
+    }
+}

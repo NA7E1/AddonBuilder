@@ -1,0 +1,12 @@
+{
+    "format_version": "1.21.20",
+    "minecraft:jigsaw": {
+        "description": {
+            "identifier": "namespace:default_jigsaw"
+        },
+        "step": "underground_structures",
+        "start_pool": "namespace:default_template_pool",
+        "max_depth": 0,
+        "start_height": 0
+    }
+}

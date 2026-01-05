@@ -4,16 +4,21 @@ const path = await require('@bridge/path');
 const { getCurrentProject } = env;
 const { join } = path;
 
-async function scanAddon() {
+window.scanAddon = async function () {
     const projectRoot = await getCurrentProject();
     await window.log('Starting addon scan...');
 
     const elements = {
-        structures: { linked: [], unlinked: [] },
-        features: { linked: [], unlinked: [] },
+        structures: {
+            linked: [],
+            unlinked: []
+        },
+        features: {
+            linked: [],
+            unlinked: []
+        },
         unknown: []
     };
-
     const index = {
         mcstructures: new Map(),
         structure_sets: new Map(),
@@ -22,280 +27,165 @@ async function scanAddon() {
         features: new Map(),
         feature_rules: new Map()
     };
+    window.addonIndex = index;
 
     const scanStart = Date.now();
     let filesFound = 0;
 
-    // Helper: Recursive Indexer
+    // Helper: Directory Checker
+    async function tryReadDir(dirPath) {
+        try { return Array.isArray(await fs.readdir(dirPath)); } catch { return false; }
+    }
 
-    async function scan(type, dir, map) {
-        let entries;
-        try { entries = await fs.readdir(dir); } catch (err) {
-            await window.log(`Error reading dir ${dir}: ${err.message}`, true);
-            return;
-        }
+    // Helper: Directory Scanner
+    async function scan(type, directory, map) {
+        let entries = [];
+        try { entries = await fs.readdir(directory); } catch { return; }
 
         for (const name of entries) {
-            const filePath = join(dir, name);
-            let isDir = false;
-            try { isDir = Array.isArray(await fs.readdir(filePath)); } catch (e) { }
-
-            if (isDir) {
-                await scan(type, filePath, map);
-            } else if (name.toLowerCase().endsWith('.mcstructure') && type === 'mcstructure') {
-                const id = filePath.replace(join(projectRoot, 'BP', 'structures'), '').replace(/^[\\\/]/, '').replace('.mcstructure', '');
-                map.set(id, { identifier: id, path: filePath, type: 'mcstructure' });
+            const filePath = join(directory, name);
+            if (await tryReadDir(filePath)) await scan(type, filePath, map);
+            else {
                 filesFound++;
-            } else if (name.toLowerCase().endsWith('.json')) {
-                try {
-                    const raw = await fs.readFile(filePath, 'utf8');
-                    const text = typeof raw === 'string' ? raw : await raw.text();
-                    const cleaned = text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/,\s*([}\]])/g, '$1');
-                    const parsed = JSON.parse(cleaned);
-
-                    const key = type !== 'feature' ? `minecraft:${type}` : Object.keys(parsed || {}).find(k => k.startsWith('minecraft:'));
-                    const data = parsed?.[key];
-
-                    if (data?.description?.identifier) {
-                        map.set(data.description.identifier, { path: filePath, visited: false, data, elementType: key, version: parsed?.format_version || 'unknown' });
-                    } else {
-                        elements.unknown.push({ path: filePath, errors: { MISSING_IDENTIFIER: [filePath] } });
-                    }
-                } catch (err) {
-                    await window.log(`Error: ${filePath} - ${err.message}`);
-                }
-                filesFound++;
-            } else {
-                elements.unknown.push({ path: filePath, errors: { UNKNOWN_FILE_TYPE: [filePath] } });
-                filesFound++;
+                if (type === 'mcstructure' && name.endsWith('.mcstructure')) {
+                    const identifier = filePath.replace(join(projectRoot, 'BP', 'structures'), '').replace(/^[\\\/]/, '').replace('.mcstructure', '');
+                    map.set(identifier, { identifier, path: filePath, type });
+                } else if (name.endsWith('.json')) {
+                    try {
+                        const parsed = await window.parseJSON(filePath);
+                        const key = type === 'feature' ? Object.keys(parsed || {}).find(k => k.startsWith('minecraft:')) : `minecraft:${type}`;
+                        const data = parsed?.[key];
+                        if (data?.description?.identifier) map.set(data.description.identifier, { path: filePath, visited: false, data, elementType: key, version: parsed?.format_version || 'unknown' });
+                        else elements.unknown.push({ path: filePath, errors: { MISSING_IDENTIFIER: [filePath] } });
+                    } catch (error) { await window.log(`Error: ${filePath} - ${error.message}`); }
+                } else elements.unknown.push({ path: filePath, errors: { UNKNOWN_FILE_TYPE: [filePath] } });
             }
         }
     }
 
     // 1. Index Files
+    await Promise.all([
+        scan('mcstructure', join(projectRoot, 'BP', 'structures'), index.mcstructures),
+        window.settings.scanStructures && scan('structure_set', join(projectRoot, 'BP', 'worldgen', 'structure_sets'), index.structure_sets),
+        window.settings.scanStructures && scan('jigsaw', join(projectRoot, 'BP', 'worldgen', 'structures'), index.jigsaws),
+        window.settings.scanStructures && scan('template_pool', join(projectRoot, 'BP', 'worldgen', 'template_pools'), index.template_pools),
+        window.settings.scanFeatures && scan('feature', join(projectRoot, 'BP', 'features'), index.features),
+        window.settings.scanFeatures && scan('feature_rules', join(projectRoot, 'BP', 'feature_rules'), index.feature_rules)
+    ].filter(Boolean));
 
-    const tasks = [
-        scan('mcstructure', join(projectRoot, 'BP', 'structures'), index.mcstructures)
-    ];
-
-    if (window.settings.scanStructures) {
-        tasks.push(
-            scan('structure_set', join(projectRoot, 'BP', 'worldgen', 'structure_sets'), index.structure_sets),
-            scan('jigsaw', join(projectRoot, 'BP', 'worldgen', 'structures'), index.jigsaws),
-            scan('template_pool', join(projectRoot, 'BP', 'worldgen', 'template_pools'), index.template_pools)
-        );
+    // Helper: Item Assembler
+    async function checkItem(identifier, map, type, callback) {
+        const info = map.get(identifier), isVanilla = identifier?.startsWith('minecraft:');
+        if (!info) return { identifier, type, path: 'unknown', version: 'unknown', errors: isVanilla ? {} : { [`MISSING_${type.toUpperCase()}`]: [] }, ...(await callback(null, {})) };
+        if (info.checked) return info.checked;
+        info.visited = true;
+        const item = { identifier, type, path: info.path, version: info.version || 'unknown', errors: {}, ...(await callback(info.data, {})) };
+        info.checked = item;
+        return item;
     }
 
-    if (window.settings.scanFeatures) {
-        tasks.push(
-            scan('feature', join(projectRoot, 'BP', 'features'), index.features),
-            scan('feature_rules', join(projectRoot, 'BP', 'feature_rules'), index.feature_rules)
-        );
-    }
+    // Helper: Feature Assembler
+    async function checkFeature(identifier) {
+        return await checkItem(identifier, index.features, 'feature', async function (data, featureItem) {
+            featureItem.features = []; featureItem.structure = null; featureItem.elementType = index.features.get(identifier)?.elementType;
+            if (!data) return featureItem;
 
-    await Promise.all(tasks);
-
-    await window.log(`Indexing complete: mcstructures=${index.mcstructures.size}, structure_sets=${index.structure_sets.size}, jigsaws=${index.jigsaws.size}, pools=${index.template_pools.size}, features=${index.features.size}, feature_rules=${index.feature_rules.size}, unknown=${elements.unknown.length}`);
-
-    // Helper: Features
-
-    async function checkFeature(id) {
-        const featureInfo = index.features.get(id);
-        if (!featureInfo) return { identifier: id, type: 'feature', path: 'unknown', version: 'unknown', errors: { MISSING_FEATURE: [] }, features: [], structure: null, elementType: null };
-        featureInfo.visited = true;
-
-        const feature = {
-            identifier: id,
-            type: 'feature',
-            elementType: featureInfo.elementType,
-            path: featureInfo.path,
-            version: featureInfo.version || 'unknown',
-            errors: {},
-            features: [],
-            structure: null
-        };
-
-        let validSubFeatures = 0;
-        if (['minecraft:weighted_random_feature', 'minecraft:aggregate_feature', 'minecraft:sequence_feature', 'minecraft:conditional_list'].includes(feature.elementType)) {
-            validSubFeatures = 0;
-            for (const featureElement of (feature.elementType === 'minecraft:conditional_list' ? featureInfo.data?.conditional_features : featureInfo.data?.features) || []) {
-                let checkId;
-                switch (feature.elementType) {
-                    case 'minecraft:weighted_random_feature':
-                        checkId = featureElement?.[0];
-                        break;
-                    case 'minecraft:aggregate_feature':
-                    case 'minecraft:sequence_feature':
-                        checkId = featureElement;
-                        break;
-                    case 'minecraft:conditional_list':
-                        checkId = featureElement?.feature;
-                        break;
-                }
-                feature.features.push(await checkFeature(checkId));
-                const childFeature = feature.features[feature.features.length - 1];
-                if (!childFeature.errors.INVALID_FEATURE || childFeature.description?.identifier?.startsWith('minecraft:')) validSubFeatures++;
+            async function validChild(childId) {
+                const childResult = await checkFeature(childId);
+                featureItem.features.push(childId);
+                return !childResult.errors.INVALID_FEATURE || childId.startsWith('minecraft:');
             }
 
-            if (validSubFeatures === 0) {
-                feature.errors.NO_VALID_SUB_FEATURES = [feature.path];
-                feature.errors.INVALID_FEATURE = [feature.path];
+            let validCount = 0;
+            if (['minecraft:weighted_random_feature', 'minecraft:aggregate_feature', 'minecraft:sequence_feature', 'minecraft:conditional_list'].includes(featureItem.elementType)) {
+                const list = (featureItem.elementType === 'minecraft:conditional_list' ? data.conditional_features : data.features) || [];
+                for (const entry of list) if (await validChild(entry?.feature || entry?.[0] || entry)) validCount++;
+                if (!validCount) featureItem.errors = { INVALID_FEATURE: [index.features.get(identifier).path], NO_VALID_SUB_FEATURES: [index.features.get(identifier).path] };
+            } else if (['minecraft:scatter_feature', 'minecraft:search_feature', 'minecraft:snap_to_surface_feature'].includes(featureItem.elementType)) {
+                if (!(await validChild(data.feature_to_snap || data.places_feature))) featureItem.errors = { INVALID_FEATURE: [index.features.get(identifier).path], INVALID_SUB_FEATURE: [index.features.get(identifier).path] };
+            } else if (featureItem.elementType === 'minecraft:structure_template_feature') {
+                const name = data.structure_name?.split(':')?.pop();
+                if (!name || !index.mcstructures.has(name)) featureItem.errors = { MISSING_STRUCTURE: [index.features.get(identifier).path], INVALID_FEATURE: [index.features.get(identifier).path] };
+                else featureItem.structure = name;
             }
-        } else if (['minecraft:scatter_feature', 'minecraft:search_feature', 'minecraft:snap_to_surface_feature'].includes(feature.elementType)) {
-            const checkId = feature.elementType === 'minecraft:snap_to_surface_feature'
-                ? featureInfo.data?.feature_to_snap
-                : featureInfo.data?.places_feature;
-
-            const child = await checkFeature(checkId);
-            feature.features.push(child);
-
-            if (child.errors.INVALID_FEATURE || child.description?.identifier?.startsWith('minecraft:')) {
-                feature.errors.INVALID_SUB_FEATURE = [feature.path];
-                feature.errors.INVALID_FEATURE = [feature.path];
-            }
-        } else if (feature.elementType === 'minecraft:structure_template_feature') {
-            const structName = featureInfo.data?.structure_name?.split(':')?.pop();
-            if (!structName || !index.mcstructures.has(structName) || structName.startsWith('minecraft:')) {
-                feature.errors.MISSING_STRUCTURE = [feature.path];
-                feature.errors.INVALID_FEATURE = [feature.path];
-            } else feature.structure = index.mcstructures.get(structName);
-        }
-        return feature;
+            return featureItem;
+        });
     }
 
-    // Helper: Structure Pools
-
-    async function checkPool(id) {
-        const poolInfo = index.template_pools.get(id);
-        if (!poolInfo) return { identifier: id, type: 'template_pool', path: 'unknown', version: 'unknown', errors: { MISSING_POOL: [] }, elements: [] };
-        poolInfo.visited = true;
-
-        const pool = {
-            identifier: id,
-            type: 'template_pool',
-            path: poolInfo.path || 'unknown',
-            version: poolInfo.version || 'unknown',
-            errors: {},
-            elements: []
-        };
-
-        let validElements = 0;
-
-        for (const element of poolInfo.data?.elements || []) {
-            if (element.element?.element_type === 'minecraft:single_pool_element' && index.mcstructures.has(element.element?.location)) {
-                pool.elements.push(index.mcstructures.get(element.element?.location));
-                validElements++;
-            } else if (element.element?.element_type === 'minecraft:feature_pool_element') {
-                pool.elements.push(await checkFeature(element.element?.feature));
-                if (pool.elements[pool.elements.length - 1].errors.INVALID_FEATURE) {
-                    pool.errors.INVALID_POOL_ELEMENT = [pool.path];
-                } else validElements++;
-            } else pool.errors.INVALID_POOL_ELEMENT = [pool.path];
-        }
-
-        if (validElements === 0) pool.errors.NO_VALID_ELEMENTS = [pool.path];
-
-        return pool;
-    }
-
-    // Helper: Structure Jigsaws
-
-    async function checkJigsaw(id) {
-        const jigsawInfo = index.jigsaws.get(id);
-        if (!jigsawInfo) return { identifier: id, type: 'jigsaw', path: 'unknown', version: 'unknown', errors: { MISSING_JIGSAW: [] }, start_pool: null, pool_aliases: [] };
-        jigsawInfo.visited = true;
-
-        const jigsaw = {
-            identifier: id,
-            type: 'jigsaw',
-            path: jigsawInfo.path,
-            version: jigsawInfo.version || 'unknown',
-            errors: {},
-            start_pool: await checkPool(jigsawInfo.data?.start_pool),
-            pool_aliases: []
-        };
-
-        if (!jigsaw.start_pool || jigsaw.start_pool.errors.NO_VALID_ELEMENTS) jigsaw.errors.INVALID_START_POOL = [jigsaw.path];
-
-        for (const pool of jigsawInfo.data?.pool_aliases || []) {
-            jigsaw.pool_aliases.push(await checkPool(pool));
-
-            if (jigsaw.pool_aliases[jigsaw.pool_aliases.length - 1].errors.NO_VALID_ELEMENTS) {
-                jigsaw.errors.INVALID_POOL_ALIAS = [jigsaw.path];
+    // Helper: Pool Assembler
+    async function checkPool(identifier) {
+        return await checkItem(identifier, index.template_pools, 'template_pool', async function (data, poolItem) {
+            poolItem.elements = []; poolItem.fallback_pool = data?.fallback_pool;
+            if (!data) return poolItem;
+            let validCount = 0;
+            for (const element of data.elements || []) {
+                const elementType = element.element?.element_type;
+                if (elementType === 'minecraft:single_pool_element' && index.mcstructures.has(element.element?.location)) {
+                    poolItem.elements.push(element.element.location); validCount++;
+                } else if (elementType === 'minecraft:feature_pool_element') {
+                    const featureResult = await checkFeature(element.element?.feature);
+                    poolItem.elements.push(element.element.feature);
+                    if (!featureResult.errors.INVALID_FEATURE || element.element.feature?.startsWith('minecraft:')) validCount++;
+                    else poolItem.errors.INVALID_POOL_ELEMENT = [index.template_pools.get(identifier).path];
+                } else poolItem.errors.INVALID_POOL_ELEMENT = [index.template_pools.get(identifier).path];
             }
-        }
-
-        return jigsaw;
+            if (!validCount) poolItem.errors.NO_VALID_ELEMENTS = [index.template_pools.get(identifier).path];
+            return poolItem;
+        });
     }
 
-    // 2. Assemble Structures
+    // Helper: Jigsaw Assembler
+    async function checkJigsaw(identifier) {
+        return await checkItem(identifier, index.jigsaws, 'jigsaw', async function (data, jigsawItem) {
+            jigsawItem.start_pool = data?.start_pool; jigsawItem.pool_aliases = [];
+            if (!data) return jigsawItem;
+            const startResult = await checkPool(jigsawItem.start_pool);
+            if (!jigsawItem.start_pool || startResult.errors.NO_VALID_ELEMENTS) jigsawItem.errors.INVALID_START_POOL = [index.jigsaws.get(identifier).path];
+            for (const alias of data.pool_aliases || []) {
+                jigsawItem.pool_aliases.push(alias);
+                if ((await checkPool(alias)).errors.NO_VALID_ELEMENTS) jigsawItem.errors.INVALID_POOL_ALIAS = [index.jigsaws.get(identifier).path];
+            }
+            return jigsawItem;
+        });
+    }
 
+    // 2. Scan Structure Sets
     await window.log('Assembling structure sets...');
-
-    for (const [id, info] of index.structure_sets) {
-        index.structure_sets.get(id).visited = true;
-        let structure_set = {
-            identifier: id,
-            type: 'structure_set',
-            path: info.path,
-            version: info.version || 'unknown',
-            errors: {},
-            jigsaws: []
-        };
-
+    for (const [identifier, info] of index.structure_sets) {
+        info.visited = true;
+        const structureSet = { identifier, type: 'structure_set', path: info.path, version: info.version || 'unknown', errors: {}, jigsaws: [] };
         let validJigsaws = 0;
-
-        for (const jigsaw of info.data?.structures || []) {
-            if (index.jigsaws.has(jigsaw.structure)) {
-                structure_set.jigsaws.push(await checkJigsaw(jigsaw.structure));
-                if (!structure_set.jigsaws[structure_set.jigsaws.length - 1].errors.INVALID_START_POOL) validJigsaws++;
+        for (const entry of info.data?.structures || []) {
+            if (index.jigsaws.has(entry.structure)) {
+                const jigsawResult = await checkJigsaw(entry.structure);
+                structureSet.jigsaws.push(entry.structure);
+                if (!jigsawResult.errors.INVALID_START_POOL) validJigsaws++;
             }
         }
-
-        if (validJigsaws > 0) {
-            elements.structures.linked.push(structure_set);
-        } else {
-            structure_set.errors.NO_VALID_JIGSAWS = [structure_set.path];
-            elements.structures.unlinked.push(structure_set);
-        }
+        if (validJigsaws) elements.structures.linked.push(structureSet);
+        else { structureSet.errors.NO_VALID_JIGSAWS = [structureSet.path]; elements.structures.unlinked.push(structureSet); }
     }
 
-    // 3. Check Orphaned Jigsaws
+    // 3. Scan Orphaned Jigsaws and Pools
+    for (const [identifier, info] of index.jigsaws) if (!info.visited) elements.structures.unlinked.push(await checkJigsaw(identifier));
+    for (const [identifier, info] of index.template_pools) if (!info.visited) elements.structures.unlinked.push(await checkPool(identifier));
 
-    for (const [id, info] of index.jigsaws) if (!info.visited) elements.structures.unlinked.push(await checkJigsaw(id));
-
-    // 4. Check Orphaned Pools
-
-    for (const [id, info] of index.template_pools) if (!info.visited) elements.structures.unlinked.push(await checkPool(id));
-
-    // 5. Assemble Features
-
+    // 4. Scan Feature Rules
     await window.log('Assembling features...');
-
-    for (const [id, info] of index.feature_rules) {
-        index.feature_rules.get(id).visited = true;
-        const feature_rule = {
-            identifier: id,
-            type: 'feature_rule',
-            path: info.path,
-            version: info.version || 'unknown',
-            errors: {},
-            feature: await checkFeature(info.data?.description?.places_feature)
-        };
-        if ((!feature_rule.feature || feature_rule.feature.errors.INVALID_FEATURE) && !info.data?.description?.places_feature.startsWith('minecraft:')) {
-            feature_rule.errors.INVALID_FEATURE_RULE = [feature_rule.path];
-            elements.features.unlinked.push(feature_rule);
-        } else elements.features.linked.push(feature_rule);
+    for (const [identifier, info] of index.feature_rules) {
+        info.visited = true;
+        const featureRule = { identifier, type: 'feature_rule', path: info.path, version: info.version || 'unknown', errors: {}, feature: info.data?.description?.places_feature };
+        const featureResult = await checkFeature(featureRule.feature);
+        if ((!featureResult || featureResult.errors.INVALID_FEATURE) && !featureRule.feature?.startsWith('minecraft:')) {
+            featureRule.errors.INVALID_FEATURE_RULE = [featureRule.path];
+            elements.features.unlinked.push(featureRule);
+        } else elements.features.linked.push(featureRule);
     }
 
-    // 6. Check Orphaned Features
-
-    for (const [id, info] of index.features) if (!info.visited) elements.features.unlinked.push(await checkFeature(id));
+    // 5. Scan Orphaned Features
+    for (const [identifier, info] of index.features) if (!info.visited) elements.features.unlinked.push(await checkFeature(identifier));
 
     await window.log(`Scan completed in ${(Date.now() - scanStart) / 1000}s, found ${filesFound} files.`);
-    await window.log(`Structures: L=${elements.structures.linked.length}/U=${elements.structures.unlinked.length}, Features: L=${elements.features.linked.length}/U=${elements.features.unlinked.length}, Unknown: ${elements.unknown.length}`);
-
+    await window.log(`Structures: ${elements.structures.linked.length}L/${elements.structures.unlinked.length}U, Features: ${elements.features.linked.length}L/${elements.features.unlinked.length}U, Unknown: ${elements.unknown.length}`);
     return elements;
 }
-
-window.scanAddon = scanAddon;
