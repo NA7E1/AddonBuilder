@@ -1,5 +1,11 @@
 {
-    "global": {
-        "identifier": "The identifier of the element. This is used to reference the element in other elements."
+    "structure_set": {
+        "identifier": "The unique identifier for this structure set, typically in the format 'namespace:name'."
+    },
+    "jigsaw": {
+        "identifier": "The unique identifier for this jigsaw, typically in the format 'namespace:name'."
+    },
+    "template_pool": {
+        "identifier": "The unique identifier for this template pool, typically in the format 'namespace:name'."
     }
 }

@@ -1,7 +1,7 @@
 const sidebar = await require('@bridge/sidebar')
 const notification = await require('@bridge/notification')
 const ui = await require('@bridge/ui')
-const fs = await require('@bridge/fs');
+const fs = await require('@bridge/fs')
 
 const PATH = './extensions/AddonBuilder/resources';
 const LOG = `${PATH}/addonbuilder.log`
@@ -10,13 +10,18 @@ const HELP = `${PATH}/helpText.json`;
 
 const readJson = async (path) => {
     try {
-        if (!(await fs.fileExists(path))) return {};
+        if (!path || !(await fs.fileExists(path))) return {};
         const raw = await fs.readFile(path, 'utf8');
-        return JSON.parse(typeof raw === 'string' ? raw : await raw.text());
+        return JSON.parse(typeof raw === 'string' ? raw : (await raw?.text?.()) || '{}');
     } catch (err) { return {} };
 };
 
-window.settings = { scanStructures: true, scanFeatures: true, scanUnknown: true, debugLogging: false };
+window.settings = {
+    scanStructures: true,
+    scanFeatures: true,
+    scanUnknown: true,
+    debugLogging: false
+};
 
 Object.assign(window.settings, await readJson(SETTINGS));
 window.helpText = await readJson(HELP);
@@ -46,8 +51,10 @@ window.log = async (line, error) => {
 };
 
 window.parseJSON = async (path) => {
+    if (!path || !(await fs.fileExists(path))) return {};
     const raw = await fs.readFile(path, 'utf8');
-    const text = typeof raw === 'string' ? raw : await raw.text();
+    const text = typeof raw === 'string' ? raw : (await raw?.text?.()) || '';
+    if (!text) return {};
     const cleaned = text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/,\s*([}\]])/g, '$1');
     return JSON.parse(cleaned);
 };
