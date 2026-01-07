@@ -14,15 +14,17 @@
             </v-expand-transition>
         </v-card>
 
-        <div v-if="expanded.type === 'structure_set'">
+        <div v-if="['jigsaw','structure_set'].includes(expanded.type)">
             <v-btn v-for="jigsaw in data.jigsaws" :key="jigsaw['minecraft:jigsaw'].description.identifier" color="primary" class="rounded-lg" large @click="expanded = {type: 'jigsaw', identifier: jigsaw['minecraft:jigsaw'].description.identifier}"><v-icon left>mdi-puzzle</v-icon>{{jigsaw['minecraft:jigsaw'].description.identifier}}</v-btn>
-            <v-btn color="primary" class="rounded-lg" large depressed @click="expanded = {type: 'jigsaw', identifier: data.newJigsaw()['minecraft:jigsaw'].description.identifier}"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
+            <v-btn color="primary" class="rounded-lg" large depressed @click="data.newJigsaw().then(j => { expanded = { type: 'jigsaw', identifier: j['minecraft:jigsaw'].description.identifier } })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
         </div>
 
         <v-card class="mb-4 rounded-lg overflow-hidden" outlined>
             <v-card-title @click="expanded.type = 'jigsaw'">
                 <v-icon left>mdi-puzzle</v-icon>Jigsaw
-                <div v-if="expanded.type !== 'jigsaw'">{{data.jigsaws.find(j => j['minecraft:jigsaw'].description.identifier === expanded.identifier)['minecraft:jigsaw'].description.identifier}}</div>
+                <div v-if="expanded.type !== 'jigsaw' && data.jigsaws.find(j => j['minecraft:jigsaw']?.description?.identifier === expanded.identifier)">
+                    {{ data.jigsaws.find(j => j['minecraft:jigsaw']?.description?.identifier === expanded.identifier)['minecraft:jigsaw'].description.identifier }}
+                </div>
             </v-card-title>
             <v-expand-transition>
                 <v-card-text v-if="expanded.type === 'jigsaw'">
@@ -32,21 +34,23 @@
 
                     <div v-for="element in data.jigsaws.find(j => j['minecraft:jigsaw'].description.identifier === expanded.identifier)['minecraft:jigsaw'].elements" :key="element['minecraft:jigsaw'].description.identifier" @click="expanded = {type: 'element', identifier: element['minecraft:jigsaw'].description.identifier}">
                         <v-btn color="primary" class="rounded-lg" large depressed><v-icon left>mdi-puzzle</v-icon>{{element['minecraft:jigsaw'].description.identifier}}</v-btn>
-                        <v-btn color="primary" class="rounded-lg" large depressed @click="expanded = {type: 'element', identifier: data.newTemplatePool()['minecraft:template_pool'].description.identifier}"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
+                        <v-btn color="primary" class="rounded-lg" large depressed @click="data.newTemplatePool().then(p => { expanded = { type: 'element', identifier: p['minecraft:template_pool'].description.identifier } })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
                     </div>
                 </v-card-text>
             </v-expand-transition>
         </v-card>
 
-        <div v-if="expanded.type === 'jigsaw'">
+        <div v-if="['template_pool','jigsaw'].includes(expanded.type)">
             <v-btn v-for="templatePool in data.template_pools" :key="templatePool['minecraft:template_pool'].description.identifier" color="primary" class="rounded-lg" large @click="expanded = {type: 'template_pool', identifier: templatePool['minecraft:template_pool'].description.identifier}"><v-icon left>mdi-puzzle</v-icon>{{templatePool['minecraft:template_pool'].description.identifier}}</v-btn>
-            <v-btn color="primary" class="rounded-lg" large depressed @click="expanded = {type: 'template_pool', identifier: data.newTemplatePool()['minecraft:template_pool'].description.identifier}"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
+            <v-btn color="primary" class="rounded-lg" large depressed @click="data.newTemplatePool().then(p => { expanded = { type: 'template_pool', identifier: p['minecraft:template_pool'].description.identifier } })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
         </div>
 
         <v-card class="mb-4 rounded-lg overflow-hidden" outlined v-if="expanded.type !== 'structure_set'">
             <v-card-title @click="expanded.type = 'template_pool'">
                 <v-icon left>mdi-library-shelves</v-icon>Template Pool
-                <div v-if="expanded.type !== 'template_pool'">{{data.template_pools.find(tp => tp['minecraft:template_pool'].description.identifier === expanded.identifier)['minecraft:template_pool'].description.identifier}}</div>
+                <div v-if="expanded.type !== 'template_pool' && data.template_pools.find(tp => tp['minecraft:template_pool']?.description?.identifier === expanded.identifier)">
+                    {{ data.template_pools.find(tp => tp['minecraft:template_pool']?.description?.identifier === expanded.identifier)['minecraft:template_pool'].description.identifier }}
+                </div>
             </v-card-title>
             <v-expand-transition>
                 <v-card-text v-if="expanded.type === 'template_pool'">
@@ -80,13 +84,15 @@ export default {
                 template_pools: [],
 
                 newJigsaw: async function() {
-                    this.jigsaws.push(await window.parseJSON('./default_jigsaw.json'));
-                    return this.jigsaws[this.jigsaws.length - 1];
+                    let jigsaw = await window.parseJSON('./extensions/AddonBuilder/resources/default_jigsaw.json');
+                    this.jigsaws.push(jigsaw);
+                    return jigsaw;
                 },
 
                 newTemplatePool: async function() {
-                    this.template_pools.push(await window.parseJSON('./default_template_pool.json'));
-                    return this.template_pools[this.template_pools.length - 1];
+                    let templatePool = await window.parseJSON('./extensions/AddonBuilder/resources/default_template_pool.json');
+                    this.template_pools.push(templatePool);
+                    return templatePool;
                 },
 
                 newElement: async function(pool) {
@@ -147,7 +153,8 @@ export default {
                 const index = window.addonIndex || {};
                 
                 this.data.structure_set = await loadFile('default_structure_set.json', this.info.path);
-                this.data.jigsaws = []; this.data.template_pools = [];
+                this.data.jigsaws = [];
+                this.data.template_pools = [];
                 
                 for (let { structure: identifier } of this.data.structure_set['minecraft:structure_set']?.structures || []) {
                     if (!index.jigsaws?.has(identifier)) continue;
@@ -175,25 +182,21 @@ export default {
         async save(exit) {
             try {
                 const projectRoot = await this.bridge.env.getCurrentProject()
-                const structureSet = this.data.structure_set['minecraft:structure_set']
-                const identifier = structureSet.description.identifier;
-                const name = identifier.split(':').pop();
-                
-                if (!identifier) return notify.create({ title: 'Error', body: 'Identifier is required', type: 'error' });
 
                 // Save Structure Set
-                await this.bridge.fs.writeJSON(path.join(projectRoot, 'BP/worldgen/structure_sets', `${name}.json`), { 
+                const structureSet = this.data.structure_set['minecraft:structure_set']
+                const structureSetId = structureSet.description.identifier;
+                await this.bridge.fs.writeJSON(this.bridge.path.join(projectRoot, 'BP/worldgen/structure_sets', `${structureSetId}.json`), { 
                     format_version: this.data.structure_set.format_version || "1.21.20", 
                     'minecraft:structure_set': structureSet 
                 });
                 
-                // Determine subfolder if creating new organized files
-                const subfolder = this.data.jigsaws.length > 1 ? name : '';
+                const subfolder = this.data.jigsaws.length > 1 ? structureSetId : '';
                 
                 // Save Jigsaws
                 for (let jigsaw of this.data.jigsaws) {
                     const jigsawData = jigsaw['minecraft:jigsaw'], jigsawName = jigsawData.description.identifier.split(':').pop();
-                    const savePath = jigsaw._path || path.join(projectRoot, 'BP/worldgen/structures', subfolder, `${jigsawName}.json`);
+                    const savePath = jigsaw._path || this.bridge.path.join(projectRoot, 'BP/worldgen/structures', subfolder, `${jigsawName}.json`);
                     await this.bridge.fs.writeJSON(savePath, { 
                         format_version: jigsaw.format_version || "1.21.20", 
                         'minecraft:jigsaw': jigsawData 
@@ -203,7 +206,7 @@ export default {
                 // Save Template Pools
                 for (let pool of this.data.template_pools) {
                     const poolData = pool['minecraft:template_pool'], poolName = poolData.description.identifier.split(':').pop();
-                    const savePath = pool._path || path.join(projectRoot, 'BP/worldgen/template_pools', subfolder, `${poolName}.json`);
+                    const savePath = pool._path || this.bridge.path.join(projectRoot, 'BP/worldgen/template_pools', subfolder, `${poolName}.json`);
                     await this.bridge.fs.writeJSON(savePath, { 
                         format_version: pool.format_version || "1.21.20", 
                         'minecraft:template_pool': poolData 
