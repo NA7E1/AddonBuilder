@@ -1,134 +1,119 @@
 <template>
     <v-container>
-        <header class="d-flex align-center justify-space-between mb-4">
-            <div>
-                <h1 class="text-h6 mb-1">Addon Builder</h1>
-                <p class="text-body-2 grey--text mb-0">Create and manage your addon elements.</p>
+        <div class="d-flex align-center justify-space-between mb-4">
+            <div style="min-width: 0; flex: 1;">
+                <h1 class="text-h6 mb-1 text-truncate">Addon Builder</h1>
+                <p class="text-body-2 grey--text mb-0 text-truncate">Create and manage your addon elements.</p>
             </div>
             <v-btn icon color="tertiary" @click="showSettings = true">
                 <v-icon>mdi-cog</v-icon>
             </v-btn>
-        </header>
+        </div>
 
         <v-btn block color="primary" class="mb-4 rounded-lg" depressed large @click="scan()">
             <v-icon left>mdi-magnify</v-icon>
             Scan Project
         </v-btn>
 
-        <v-row>
-            <v-col v-for="(group, key) in elements" :key="key" cols="12">
-                <v-card outlined class="rounded-lg overflow-hidden">
-                    <div class="d-flex align-center py-2 px-3 select-none sidebarNavigation" @click="expanded[key] = !expanded[key]" style="cursor: pointer; user-select: none;">
-                        <div class="d-flex align-center flex-grow-1">
-                            <v-icon class="mr-3" color="primary">{{ elementInfo[key].icon }}</v-icon>
-                            <div class="d-flex flex-column">
-                                <span class="text-subtitle-1 font-weight-bold">{{ elementInfo[key].name }}</span>
-                                <span class="text-caption grey--text">{{ Array.isArray(group) ? group.length : (group.linked.length + group.unlinked.length) }} items</span>
-                            </div>
-                        </div>
-                        
-                        <div class="d-flex align-center">
-                            <v-btn v-if="key !== 'unknown'" small color="primary" class="mr-2" @click.stop="createElement(key)">
-                                <v-icon left small>mdi-plus</v-icon> Create New
-                            </v-btn>
-                            <v-icon color="grey">{{ expanded[key] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
-                        </div>
-                    </div>
+        <v-card v-for="(group, key) in elements" :key="key" outlined class="rounded-lg overflow-hidden mb-3">
+            <div class="d-flex align-center py-2 px-3 select-none sidebarNavigation" @click="expanded[key] = !expanded[key]" :style="{cursor: 'pointer', userSelect: 'none'}">
+                <v-icon class="mr-3" color="primary">{{ elementInfo[key].icon }}</v-icon>
+                <div class="d-flex flex-column" style="min-width: 0; flex: 1;">
+                    <span class="text-subtitle-1 font-weight-bold text-truncate">{{ elementInfo[key].name }}</span>
+                    <span class="text-caption grey--text">{{ Array.isArray(group) ? group.length : (group.linked.length + group.unlinked.length) }} items</span>
+                </div>
+                
+                <v-btn v-if="key !== 'unknown'" small color="primary" class="mr-2" @click.stop="createElement(key)">
+                    <v-icon left small>mdi-plus</v-icon>New
+                </v-btn>
+                <v-icon color="grey">{{ expanded[key] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+            </div>
 
-                    <v-expand-transition>
-                        <div v-show="expanded[key]" class="sidebarSelection">
-                            <v-divider></v-divider>
-                            <v-card-text class="pa-0">
-                                
-                                <template v-if="!Array.isArray(group)">
-                                    <v-list dense color="transparent" class="pa-0">
-                                        <template v-for="item in [...group.linked, ...group.unlinked]" :key="item.identifier">
-                                            <v-list-group no-action append-icon="mdi-chevron-down" class="ab-element-group">
-                                                <template v-slot:activator>
-                                                    <v-list-item-content @click.stop="openEditor(item, key)" style="cursor: pointer;">
-                                                        <v-list-item-title class="d-flex align-center">
-                                                            <span :class="group.linked.includes(item) ? 'primary--text font-weight-bold' : 'grey--text'">{{ item.identifier.split(':').pop() }}</span>
-                                                            <span v-if="!group.linked.includes(item)" class="text-overline grey--text ml-2" style="font-size: 8px !important;">Unlinked</span>
-                                                            <v-tooltip bottom v-if="item.errors && Object.keys(item.errors).length > 0">
-                                                                <template v-slot:activator="{ on, attrs }">
-                                                                    <v-icon small color="error" class="ml-2" v-bind="attrs" v-on="on">mdi-alert-circle</v-icon>
-                                                                </template>
-                                                                <div class="d-flex flex-column text-left">
-                                                                    <div v-for="(errors, type) in item.errors" :key="type">
-                                                                        <strong>{{ type }}:</strong> {{ Array.isArray(errors) ? errors.join(', ') : errors }}
-                                                                    </div>
-                                                                </div>
-                                                            </v-tooltip>
-                                                        </v-list-item-title>
-                                                        <v-list-item-subtitle class="text-caption text--secondary font-italic">{{ item.path ? item.path.split(/[\\/]/).pop() : 'No File' }}</v-list-item-subtitle>
-                                                    </v-list-item-content>
-                                                    
-                                                    <v-list-item-action class="flex-row align-center mr-n4">
-                                                        <v-btn icon small v-if="item.path" color="primary" class="mr-1" @click.stop="handleOpenFile(item.path)" title="Open in Default Editor">
-                                                            <v-icon small>mdi-file-document-outline</v-icon>
-                                                        </v-btn>
-                                                        <v-btn icon small color="error" @click.stop="deleteItem(item)" title="Delete Element">
-                                                            <v-icon small>mdi-trash-can</v-icon>
-                                                        </v-btn>
-                                                    </v-list-item-action>
+            <v-expand-transition>
+                <div v-show="expanded[key]" class="sidebarSelection">
+                    <v-divider></v-divider>
+                    
+                    <template v-if="!Array.isArray(group)">
+                        <v-list v-if="group.linked.length || group.unlinked.length" dense color="transparent" class="pa-0">
+                            <v-list-group v-for="item in [...group.linked, ...group.unlinked]" :key="item.identifier" no-action append-icon="mdi-chevron-down" :style="{'--list-group-pr': '12px', '--list-group-ml': '4px'}">
+                                <template v-slot:activator>
+                                    <v-list-item-content @click.stop="openEditor(item, key)" :style="{cursor: 'pointer', minWidth: 0}">
+                                        <v-list-item-title class="text-truncate" :class="group.linked.includes(item) ? 'primary--text font-weight-bold' : 'grey--text'">{{ item.identifier.split(':').pop() }}</v-list-item-title>
+                                        <v-list-item-subtitle class="text-caption text--secondary font-italic text-truncate">{{ item.path ? item.path.split(/[\\/]/).pop() : 'No File' }}</v-list-item-subtitle>
+                                    </v-list-item-content>
+                                    
+                                    <v-list-item-action class="flex-row align-center mr-n4" :style="{flexShrink: 0, gap: '2px'}">
+                                        <span v-if="!group.linked.includes(item)" class="text-overline grey--text" :style="{fontSize: '8px !important', flexShrink: 0, alignSelf: 'center'}">Unlinked</span>
+                                        <v-tooltip bottom v-if="item.errors && Object.keys(item.errors).length > 0">
+                                            <template v-slot:activator="{ on, attrs }">
+                                                <v-icon small color="error" v-bind="attrs" v-on="on" :style="{flexShrink: 0, alignSelf: 'center'}">mdi-alert-circle</v-icon>
+                                            </template>
+                                            <div class="d-flex flex-column text-left">
+                                                <div v-for="(errors, type) in item.errors" :key="type">
+                                                    <strong>{{ type }}:</strong> {{ Array.isArray(errors) ? errors.join(', ') : errors }}
+                                                </div>
+                                            </div>
+                                        </v-tooltip>
+                                        <v-btn v-if="item.path" icon small color="primary" @click.stop="handleOpenFile(item.path)" title="Open in Default Editor">
+                                            <v-icon small>mdi-file-document-outline</v-icon>
+                                        </v-btn>
+                                        <v-btn icon small color="error" @click.stop="deleteItem(item)" title="Delete Element">
+                                            <v-icon small>mdi-trash-can</v-icon>
+                                        </v-btn>
+                                    </v-list-item-action>
+                                </template>
+
+                                <v-list-item v-for="(child, idx) in getFileTree(item)" :key="child.id || idx" :style="{paddingLeft: (child.level * 16 + 12) + 'px', minHeight: '32px'}">
+                                    <v-list-item-content class="py-1" style="min-width: 0;">
+                                        <v-list-item-title class="text-caption d-flex align-center" style="min-width: 0;">
+                                            <v-icon small class="mr-1" :color="child.hasError ? 'error' : 'grey'" :style="{flexShrink: 0}">{{ child.icon || 'mdi-file-outline' }}</v-icon>
+                                            <span :class="{'error--text': child.hasError, 'grey--text text--lighten-1': !child.path}" class="text-truncate" :style="{flex: 1, minWidth: 0}">{{ child.name }}</span>
+                                            <v-tooltip bottom v-if="child.hasError">
+                                                <template v-slot:activator="{ on, attrs }">
+                                                    <v-icon x-small color="error" class="ml-1" v-bind="attrs" v-on="on" :style="{flexShrink: 0}">mdi-alert-circle</v-icon>
                                                 </template>
-
-                                                <v-list-item v-for="(child, idx) in getFlattenedHierarchy(item)" :key="child.id || idx" :style="{ paddingLeft: (child.level * 16 + 12) + 'px' }" class="min-height-32">
-                                                    <v-list-item-content class="py-1">
-                                                        <v-list-item-title class="text-caption d-flex align-center">
-                                                            <v-icon small class="mr-1" :color="child.hasError ? 'error' : 'grey'">{{ child.icon || 'mdi-file-outline' }}</v-icon>
-                                                            <span :class="{'error--text': child.hasError, 'grey--text text--lighten-1': !child.path}">{{ child.name }}</span>
-                                                            <v-tooltip bottom v-if="child.hasError">
-                                                                <template v-slot:activator="{ on, attrs }">
-                                                                    <v-icon x-small color="error" class="ml-1" v-bind="attrs" v-on="on">mdi-alert-circle</v-icon>
-                                                                </template>
-                                                                <div class="text-left text-caption">
-                                                                    <div v-for="(errors, type) in child.errors" :key="type">
-                                                                        <strong>{{ type }}:</strong> {{ Array.isArray(errors) ? errors.join(', ') : errors }}
-                                                                    </div>
-                                                                </div>
-                                                            </v-tooltip>
-                                                        </v-list-item-title>
-                                                    </v-list-item-content>
-                                                    <v-list-item-action class="my-0">
-                                                        <v-btn icon x-small v-if="child.path" color="tertiary" @click.stop="handleOpenFile(child.path)">
-                                                            <v-icon x-small>mdi-file-document-outline</v-icon>
-                                                        </v-btn>
-                                                    </v-list-item-action>
-                                                </v-list-item>
-                                            </v-list-group>
-                                        </template>
-                                    </v-list>
-                                    <div v-if="group.linked.length === 0 && group.unlinked.length === 0" class="pa-4 text-center text--secondary text-caption">
-                                        No items found.
-                                    </div>
-                                </template>
-
-                                <template v-else>
-                                    <v-list dense v-if="group.length > 0" color="transparent" class="pa-0">
-                                        <v-list-item v-for="item in group" :key="item.path" class="min-height-48 px-3">
-                                            <v-list-item-content @click="handleOpenFile(item.path)" style="cursor: pointer;">
-                                                <v-list-item-title class="error--text font-weight-medium text-caption">{{ item.path.split(/[\\/]/).pop() }}</v-list-item-title>
-                                                <v-list-item-subtitle class="text-caption grey--text text-truncate">{{ item.errors ? Object.keys(item.errors).join(', ') : 'Unknown Error' }}</v-list-item-subtitle>
-                                            </v-list-item-content>
-                                            <v-list-item-action>
-                                                <v-btn icon small color="error" @click.stop="handleOpenFile(item.path)">
-                                                    <v-icon small>mdi-file-document-outline</v-icon>
-                                                </v-btn>
-                                            </v-list-item-action>
-                                        </v-list-item>
-                                    </v-list>
-                                    <div v-else class="pa-4 text-center text--secondary text-caption">
-                                        No items found.
-                                    </div>
-                                </template>
-
-                            </v-card-text>
+                                                <div class="text-left text-caption">
+                                                    <div v-for="(errors, type) in child.errors" :key="type">
+                                                        <strong>{{ type }}:</strong> {{ Array.isArray(errors) ? errors.join(', ') : errors }}
+                                                    </div>
+                                                </div>
+                                            </v-tooltip>
+                                        </v-list-item-title>
+                                    </v-list-item-content>
+                                    <v-list-item-action class="my-0" v-if="child.path" :style="{flexShrink: 0}">
+                                        <v-btn icon x-small color="tertiary" @click.stop="handleOpenFile(child.path)">
+                                            <v-icon x-small>mdi-file-document-outline</v-icon>
+                                        </v-btn>
+                                    </v-list-item-action>
+                                </v-list-item>
+                            </v-list-group>
+                        </v-list>
+                        <div v-else class="pa-4 text-center text--secondary text-caption">
+                            No items found.
                         </div>
-                    </v-expand-transition>
-                </v-card>
-            </v-col>
-        </v-row>
+                    </template>
+
+                    <template v-else>
+                        <v-list v-if="group.length" dense color="transparent" class="pa-0">
+                            <v-list-item v-for="item in group" :key="item.path" :style="{minHeight: '48px'}" class="px-3">
+                                <v-list-item-content @click="handleOpenFile(item.path)" :style="{cursor: 'pointer', minWidth: 0}">
+                                    <v-list-item-title class="error--text font-weight-medium text-caption text-truncate">{{ item.path.split(/[\\/]/).pop() }}</v-list-item-title>
+                                    <v-list-item-subtitle class="text-caption grey--text text-truncate">{{ item.errors ? Object.keys(item.errors).join(', ') : 'Unknown Error' }}</v-list-item-subtitle>
+                                </v-list-item-content>
+                                <v-list-item-action :style="{flexShrink: 0}">
+                                    <v-btn icon small color="error" @click.stop="handleOpenFile(item.path)">
+                                        <v-icon small>mdi-file-document-outline</v-icon>
+                                    </v-btn>
+                                </v-list-item-action>
+                            </v-list-item>
+                        </v-list>
+                        <div v-else class="pa-4 text-center text--secondary text-caption">
+                            No items found.
+                        </div>
+                    </template>
+                </div>
+            </v-expand-transition>
+        </v-card>
 
         <v-dialog v-model="showSettings" max-width="400">
             <v-card class="sidebarNavigation">
@@ -139,17 +124,13 @@
                     </v-btn>
                 </v-card-title>
                 <v-card-text class="pt-0">
-                    <div class="mt-1 mb-2">
-                        <div class="text-overline mb-2 primary--text font-weight-bold">Scan Controls</div>
-                        <v-switch v-model="settings.scanStructures" label="Scan for structures" dense hide-details class="mt-0 pt-0 mb-4"></v-switch>
-                        <v-switch v-model="settings.scanFeatures" label="Scan for features" dense hide-details class="mt-0 pt-0 mb-4"></v-switch>
-                        <v-switch v-model="settings.scanUnknown" label="Scan for unknown files" dense hide-details class="mt-0 pt-0"></v-switch>
-                    </div>
+                    <div class="text-overline mb-2 primary--text font-weight-bold">Scan Controls</div>
+                    <v-switch v-model="settings.scanStructures" label="Scan for structures" dense hide-details class="mt-0 pt-0 mb-4"></v-switch>
+                    <v-switch v-model="settings.scanFeatures" label="Scan for features" dense hide-details class="mt-0 pt-0 mb-4"></v-switch>
+                    <v-switch v-model="settings.scanUnknown" label="Scan for unknown files" dense hide-details class="mt-0 pt-0 mb-4"></v-switch>
 
-                    <div class="mt-1 mb-2">
-                        <div class="text-overline mb-2 primary--text font-weight-bold">Developer Settings</div>
-                        <v-switch v-model="settings.debugLogging" label="Enable Debug Logging" dense hide-details class="mt-0 pt-0 mb-4"></v-switch>
-                    </div>
+                    <div class="text-overline mb-2 primary--text font-weight-bold">Developer Settings</div>
+                    <v-switch v-model="settings.debugLogging" label="Enable Debug Logging" dense hide-details class="mt-0 pt-0"></v-switch>
                 </v-card-text>
             </v-card>
         </v-dialog>
@@ -238,52 +219,47 @@ export default {
             } catch (error) { await window.log(`Error deleting ${item.path}: ${error.message}`, true); }
         },
 
-        getFlattenedHierarchy(rootItem) {
-            const index = window.addonIndex, hasErrors = (item) => item?.errors && Object.keys(item.errors).length > 0;
+        getFileTree(item) {
+            const index = window.addonIndex;
             const icons = { mcstructures: 'mdi-cube-outline', jigsaws: 'mdi-puzzle-outline', template_pools: 'mdi-format-list-bulleted-type', features: 'mdi-tree-outline' };
             
-            const resolveIdentifier = (identifier, typeMap) => {
-                if (!identifier || typeof identifier !== 'string') return null;
-                const found = (typeMap ? index[typeMap]?.get(identifier) : null) || index.features?.get(identifier) || index.mcstructures?.get(identifier) || index.jigsaws?.get(identifier) || index.template_pools?.get(identifier);
-                const resolvedItem = found?.checked || found;
-                return resolvedItem ? { ...resolvedItem, name: identifier, typeMap: typeMap || (found?.checked ? 'features' : null) } : { name: identifier, errors: identifier.startsWith('minecraft:') ? {} : { UNKNOWN_ID: [identifier] } };
+            const resolve = (id, type) => {
+                if (!id || typeof id !== 'string') return null;
+                const found = (type ? index[type]?.get(id) : null) || index.features?.get(id) || index.mcstructures?.get(id) || index.jigsaws?.get(id) || index.template_pools?.get(id);
+                const resolved = found?.checked || found;
+                return resolved ? { ...resolved, name: id, typeMap: type || (found?.checked ? 'features' : null) } : { name: id, errors: id.startsWith('minecraft:') ? {} : { UNKNOWN_ID: [id] } };
             };
 
-            const flatten = (item, level = 0, pathSet = new Set(), depth = 0) => {
-                if (depth > 10) return []; // Safety
-                const nodes = [];
+            const traverse = (item, level = 0, visited = new Set(), depth = 0) => {
+                if (depth > 10) return [];
+                const nodes = [], hasError = item?.errors && Object.keys(item.errors).length > 0;
                 
-                // Array props to traverse
-                const arrayProps = [{ prop: 'features', map: 'features' }, { prop: 'jigsaws', map: 'jigsaws' }, { prop: 'elements' }, { prop: 'pool_aliases', map: 'template_pools' }];
-                arrayProps.forEach(({ prop, map }) => {
-                    (item[prop] || []).forEach(identifier => {
-                        const child = resolveIdentifier(identifier, map);
-                        if (child && !pathSet.has(child.path || child.name)) {
-                            const newSet = new Set(pathSet); if (child.path) newSet.add(child.path); else newSet.add(child.name);
-                            nodes.push({ name: child.identifier || child.name, path: child.path, level, hasError: hasErrors(child), errors: child.errors, icon: icons[map] || icons[child.typeMap] });
-                            nodes.push(...flatten(child, level + 1, newSet, depth + 1));
-                        }
-                    });
-                });
-
-                // Single props to traverse
-                const singleProps = [{ prop: 'structure', map: 'mcstructures' }, { prop: 'start_pool', map: 'template_pools' }, { prop: 'fallback_pool', map: 'template_pools' }, { prop: 'feature', map: 'features' }];
-                singleProps.forEach(({ prop, map }) => {
-                    if (item[prop]) {
-                        const child = resolveIdentifier(item[prop], map) || (prop === 'structure' ? resolveIdentifier(item[prop], 'jigsaws') : null);
-                        if (child && !pathSet.has(child.path || child.name)) {
-                            const newSet = new Set(pathSet); if (child.path) newSet.add(child.path); else newSet.add(child.name);
-                            nodes.push({ name: child.identifier || child.name, path: child.path, level, hasError: hasErrors(child), errors: child.errors, icon: icons[map] || icons[child.typeMap] });
-                            nodes.push(...flatten(child, level + 1, newSet, depth + 1));
-                        }
+                const addChild = (id, type) => {
+                    const child = resolve(id, type);
+                    const key = child?.path || child?.name;
+                    if (child && !visited.has(key)) {
+                        visited.add(key);
+                        nodes.push({ name: child.identifier || child.name, path: child.path, level, hasError: child.errors && Object.keys(child.errors).length > 0, errors: child.errors, icon: icons[type] || icons[child.typeMap] });
+                        nodes.push(...traverse(child, level + 1, visited, depth + 1));
                     }
+                };
+                
+                ['features', 'jigsaws', 'elements', 'pool_aliases'].forEach(prop => {
+                    const typeMap = { features: 'features', jigsaws: 'jigsaws', pool_aliases: 'template_pools' }[prop];
+                    (item[prop] || []).forEach(id => addChild(id, typeMap));
                 });
+                
+                if (item.structure) addChild(item.structure, 'mcstructures') || addChild(item.structure, 'jigsaws');
+                if (item.start_pool) addChild(item.start_pool, 'template_pools');
+                if (item.fallback_pool) addChild(item.fallback_pool, 'template_pools');
+                if (item.feature) addChild(item.feature, 'features');
+                
                 return nodes;
             };
 
-            // Start with the root item (Structure Set / Feature)
-            const initialSet = new Set(); if (rootItem.path) initialSet.add(rootItem.path);
-            return flatten(rootItem, 1, initialSet);
+            const visited = new Set();
+            if (item.path) visited.add(item.path);
+            return traverse(item, 1, visited);
         },
 
         async saveSettings() {
@@ -293,23 +269,3 @@ export default {
     }
 };
 </script>
-<style scoped>
-.min-height-32 {
-    min-height: 32px !important;
-}
-.min-height-48 {
-    min-height: 48px !important;
-}
-.ab-element-group .v-list-group__header {
-    padding-right: 12px !important;
-}
-.ab-element-group .v-list-group__header__append-icon {
-    margin-left: 4px !important;
-}
-.sidebarNavigation {
-    transition: background 0.2s;
-}
-.sidebarSelection:hover {
-    background: rgba(var(--v-primary-base), 0.05);
-}
-</style>

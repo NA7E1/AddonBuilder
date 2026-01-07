@@ -11,11 +11,6 @@
             "spacing": 34,
             "spread_type": "linear"
         },
-        "structures": [
-            {
-                "structure": "namespace:default_jigsaw",
-                "weight": 1
-            }
-        ]
+        "structures": []
     }
 }

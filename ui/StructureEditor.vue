@@ -3,7 +3,7 @@
         <v-card class="mb-4 rounded-lg overflow-hidden" outlined>
             <v-card-title @click="expanded.type = 'structure_set'">
                 <v-icon left>mdi-castle</v-icon>Structure Set
-                <div v-if="expanded.type !== 'structure_set'">{{data.structure_set['minecraft:structure_set'].description.identifier}}</div>
+                <div v-if="expanded.type !== 'structure_set'">{{data.structure_set['minecraft:structure_set']?.description?.identifier}}</div>
             </v-card-title>
             <v-expand-transition>
                 <v-card-text v-if="expanded.type === 'structure_set'">
@@ -15,46 +15,42 @@
         </v-card>
 
         <div v-if="['jigsaw','structure_set'].includes(expanded.type)">
-            <v-btn v-for="jigsaw in data.jigsaws" :key="jigsaw['minecraft:jigsaw'].description.identifier" color="primary" class="rounded-lg" large @click="expanded = {type: 'jigsaw', identifier: jigsaw['minecraft:jigsaw'].description.identifier}"><v-icon left>mdi-puzzle</v-icon>{{jigsaw['minecraft:jigsaw'].description.identifier}}</v-btn>
-            <v-btn color="primary" class="rounded-lg" large depressed @click="data.newJigsaw().then(j => { expanded = { type: 'jigsaw', identifier: j['minecraft:jigsaw'].description.identifier } })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
+            <v-btn v-for="jigsaw in data.jigsaws" :key="jigsaw['minecraft:jigsaw'].description.identifier" color="primary" class="rounded-lg" large @click="expanded.type = 'jigsaw'; expanded.jigsaw = jigsaw['minecraft:jigsaw'].description.identifier"><v-icon left>mdi-puzzle</v-icon>{{jigsaw['minecraft:jigsaw'].description.identifier}}</v-btn>
+            <v-btn color="primary" class="rounded-lg" large depressed @click="data.newJigsaw().then(j => { expanded.type = 'jigsaw'; expanded.jigsaw = j['minecraft:jigsaw'].description.identifier })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
         </div>
 
         <v-card class="mb-4 rounded-lg overflow-hidden" outlined>
             <v-card-title @click="expanded.type = 'jigsaw'">
                 <v-icon left>mdi-puzzle</v-icon>Jigsaw
-                <div v-if="expanded.type !== 'jigsaw' && data.jigsaws.find(j => j['minecraft:jigsaw']?.description?.identifier === expanded.identifier)">
-                    {{ data.jigsaws.find(j => j['minecraft:jigsaw']?.description?.identifier === expanded.identifier)['minecraft:jigsaw'].description.identifier }}
-                </div>
+                <div v-if="['template_pool', 'element'].includes(expanded.type)">{{data.jigsaws.find(j => j['minecraft:jigsaw'].description.identifier === expanded.jigsaw)?.['minecraft:jigsaw']?.description?.identifier}}</div>
             </v-card-title>
             <v-expand-transition>
                 <v-card-text v-if="expanded.type === 'jigsaw'">
-                    <v-text-field label="Identifier" v-model="data.jigsaws.find(j => j['minecraft:jigsaw'].description.identifier === expanded.identifier)['minecraft:jigsaw'].description.identifier" :rules="[requiredRule]">
+                    <v-text-field label="Identifier" v-model="data.jigsaws.find(j => j['minecraft:jigsaw'].description.identifier === expanded.jigsaw)['minecraft:jigsaw'].description.identifier" :rules="[requiredRule]" v-if="expanded.jigsaw && data.jigsaws.find(j => j['minecraft:jigsaw'].description.identifier === expanded.jigsaw)">
                         <template v-slot:append><help-btn :text="helpText.jigsaw.identifier" /></template>
                     </v-text-field>
 
-                    <div v-for="element in data.jigsaws.find(j => j['minecraft:jigsaw'].description.identifier === expanded.identifier)['minecraft:jigsaw'].elements" :key="element['minecraft:jigsaw'].description.identifier" @click="expanded = {type: 'element', identifier: element['minecraft:jigsaw'].description.identifier}">
-                        <v-btn color="primary" class="rounded-lg" large depressed><v-icon left>mdi-puzzle</v-icon>{{element['minecraft:jigsaw'].description.identifier}}</v-btn>
-                        <v-btn color="primary" class="rounded-lg" large depressed @click="data.newTemplatePool().then(p => { expanded = { type: 'element', identifier: p['minecraft:template_pool'].description.identifier } })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
+                    <div v-for="element in data.jigsaws.find(j => j['minecraft:jigsaw'].description.identifier === expanded.jigsaw)?.['minecraft:jigsaw']?.elements" :key="element['minecraft:jigsaw']?.description?.identifier" @click="expanded.type = 'element'; expanded.identifier = element['minecraft:jigsaw']?.description?.identifier">
+                        <v-btn color="primary" class="rounded-lg" large depressed><v-icon left>mdi-puzzle</v-icon>{{element['minecraft:jigsaw']?.description?.identifier}}</v-btn>
+                        <v-btn color="primary" class="rounded-lg" large depressed @click="data.newTemplatePool().then(p => { expanded.type = 'element'; expanded.identifier = p['minecraft:template_pool'].description.identifier })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
                     </div>
                 </v-card-text>
             </v-expand-transition>
         </v-card>
 
         <div v-if="['template_pool','jigsaw'].includes(expanded.type)">
-            <v-btn v-for="templatePool in data.template_pools" :key="templatePool['minecraft:template_pool'].description.identifier" color="primary" class="rounded-lg" large @click="expanded = {type: 'template_pool', identifier: templatePool['minecraft:template_pool'].description.identifier}"><v-icon left>mdi-puzzle</v-icon>{{templatePool['minecraft:template_pool'].description.identifier}}</v-btn>
-            <v-btn color="primary" class="rounded-lg" large depressed @click="data.newTemplatePool().then(p => { expanded = { type: 'template_pool', identifier: p['minecraft:template_pool'].description.identifier } })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
+            <v-btn v-for="templatePool in data.template_pools" :key="templatePool['minecraft:template_pool'].description.identifier" color="primary" class="rounded-lg" large @click="expanded.type = 'template_pool'; expanded.template_pool = templatePool['minecraft:template_pool'].description.identifier"><v-icon left>mdi-puzzle</v-icon>{{templatePool['minecraft:template_pool'].description.identifier}}</v-btn>
+            <v-btn color="primary" class="rounded-lg" large depressed @click="data.newTemplatePool().then(p => { expanded.type = 'template_pool'; expanded.template_pool = p['minecraft:template_pool'].description.identifier })"><v-icon left>mdi-plus</v-icon>Create New</v-btn>
         </div>
 
         <v-card class="mb-4 rounded-lg overflow-hidden" outlined v-if="expanded.type !== 'structure_set'">
             <v-card-title @click="expanded.type = 'template_pool'">
                 <v-icon left>mdi-library-shelves</v-icon>Template Pool
-                <div v-if="expanded.type !== 'template_pool' && data.template_pools.find(tp => tp['minecraft:template_pool']?.description?.identifier === expanded.identifier)">
-                    {{ data.template_pools.find(tp => tp['minecraft:template_pool']?.description?.identifier === expanded.identifier)['minecraft:template_pool'].description.identifier }}
-                </div>
+                <div v-if="expanded.type === 'element'">{{data.template_pools.find(tp => tp['minecraft:template_pool'].description.identifier === expanded.template_pool)?.['minecraft:template_pool'].description.identifier}}</div>
             </v-card-title>
             <v-expand-transition>
                 <v-card-text v-if="expanded.type === 'template_pool'">
-                    <v-text-field label="Identifier" v-model="data.template_pools.find(tp => tp['minecraft:template_pool'].description.identifier === expanded.identifier)['minecraft:template_pool'].description.identifier" :rules="[requiredRule]">
+                    <v-text-field label="Identifier" v-model="data.template_pools.find(tp => tp['minecraft:template_pool'].description.identifier === expanded.template_pool)['minecraft:template_pool'].description.identifier" :rules="[requiredRule]" v-if="expanded.template_pool && data.template_pools.find(tp => tp['minecraft:template_pool'].description.identifier === expanded.template_pool)">
                         <template v-slot:append><help-btn :text="helpText.template_pool.identifier" /></template>
                     </v-text-field>
                 </v-card-text>
@@ -75,7 +71,8 @@ export default {
         return {
             expanded: {
                 type: 'structure_set',
-                identifier: 'structure_set'
+                jigsaw: null,
+                template_pool: null
             },
             info: JSON.parse(JSON.stringify(this.tab.item)),
             data: {

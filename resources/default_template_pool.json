@@ -4,14 +4,6 @@
         "description": {
             "identifier": "namespace:default_template_pool"
         },
-        "elements": [
-            {
-                "element": {
-                    "element_type": "minecraft:single_pool_element",
-                    "location": "DefaultMCstructure"
-                },
-                "weight": 1
-            }
-        ]
+        "elements": []
     }
 }

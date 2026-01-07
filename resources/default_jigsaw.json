@@ -5,7 +5,7 @@
             "identifier": "namespace:default_jigsaw"
         },
         "step": "underground_structures",
-        "start_pool": "namespace:default_template_pool",
+        "start_pool": null,
         "max_depth": 0,
         "start_height": 0
     }
