@@ -1,11 +1,22 @@
 <template>
     <v-container>
+        <div class="lineHighlightBackground">lineHighlightBackground</div>
+        <div class="menu">menu</div>
+        <div class="sidebarNavigation">sidebarNavigation</div>
+        <div class="expandedSidebar">expandedSidebar</div>
+        <div class="toolbar">toolbar</div>
+        <div class="tabInactive">tabInactive</div>
+        <div class="sidebarSelection">sidebarSelection</div>
+        <div class="tabActive">tabActive</div>
+        <div class="background">background</div>
+        <div class="footer">footer</div>
         <v-card class="mb-4 rounded-lg overflow-hidden" outlined>
             <v-card-title @click="expanded.type = 'structure_set'">
                 <v-icon left>mdi-castle</v-icon>Structure Set
                 <div v-if="expanded.type !== 'structure_set'">{{data.structure_set['minecraft:structure_set']?.description?.identifier}}</div>
             </v-card-title>
-            <v-expand-transition>
+            <divider></divider>
+            <v-expand-transition class="sidebarSelection">
                 <v-card-text v-if="expanded.type === 'structure_set'">
                     <v-text-field label="Identifier" v-model="data.structure_set['minecraft:structure_set'].description.identifier" :rules="[requiredRule]">
                         <template v-slot:append><help-btn :text="helpText.structure_set.identifier" /></template>

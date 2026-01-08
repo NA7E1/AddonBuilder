@@ -5,7 +5,7 @@
                 <h1 class="text-h6 mb-1 text-truncate">Addon Builder</h1>
                 <p class="text-body-2 grey--text mb-0 text-truncate">Create and manage your addon elements.</p>
             </div>
-            <v-btn icon color="tertiary" @click="showSettings = true">
+            <v-btn icon @click="showSettings = true">
                 <v-icon>mdi-cog</v-icon>
             </v-btn>
         </div>
@@ -20,7 +20,7 @@
                 <v-icon class="mr-3" color="primary">{{ elementInfo[key].icon }}</v-icon>
                 <div class="d-flex flex-column" style="min-width: 0; flex: 1">
                     <span class="text-subtitle-1 font-weight-bold text-truncate">{{ elementInfo[key].name }}</span>
-                    <span class="text-caption grey--text">{{ Array.isArray(group) ? group.length : (group.linked.length + group.unlinked.length) }} items</span>
+                    <span class="text-caption grey--text text-truncate">{{ Array.isArray(group) ? group.length : (group.linked.length + group.unlinked.length) }} items</span>
                 </div>
                 
                 <v-btn v-if="key !== 'unknown'" small color="primary" class="mr-2" @click.stop="createElement(key)">
@@ -30,22 +30,22 @@
             </div>
 
             <v-expand-transition>
-                <div v-show="expanded[key]" class="sidebarSelection">
+                <div v-show="expanded[key]" class="background">
                     <v-divider></v-divider>
                     
                     <template v-if="!Array.isArray(group)">
                         <v-list v-if="group.linked.length || group.unlinked.length" dense color="transparent" class="pa-0">
                             <v-list-group v-for="item in [...group.linked, ...group.unlinked]" :key="item.identifier" no-action append-icon="mdi-chevron-down">
                                 <template v-slot:activator>
-                                    <v-list-item-content @click.stop="openEditor(item, key)" style="min-width: 0; cursor: pointer;">
+                                    <v-list-item-content @click.stop="openEditor(item, key)" class="cursor-pointer">
                                         <v-list-item-title class="text-truncate" :class="group.linked.includes(item) ? 'primary--text font-weight-bold' : 'grey--text'">{{ item.identifier.split(':').pop() }}</v-list-item-title>
                                         <v-list-item-subtitle class="text-caption text--secondary font-italic text-truncate">{{ item.path ? item.path.split(/[\\/]/).pop() : 'No File' }}</v-list-item-subtitle>
                                     </v-list-item-content>
                                     
-                                    <v-list-item-action class="d-flex flex-row align-center">
+                                    <v-list-item-action class="d-flex flex-row align-center mr-n8" style="gap: 2px">
                                         <v-tooltip bottom v-if="item.errors && Object.keys(item.errors).length > 0">
                                             <template v-slot:activator="{ on, attrs }">
-                                                <v-icon small color="error" v-bind="attrs" v-on="on">mdi-alert-circle-outline</v-icon>
+                                                <v-icon small color="error" v-bind="attrs" v-on="on" style="margin-right: 2px">mdi-alert-circle-outline</v-icon>
                                             </template>
                                             <div class="d-flex flex-column text-left">
                                                 <div v-for="(errors, type) in item.errors" :key="type">
@@ -53,23 +53,23 @@
                                                 </div>
                                             </div>
                                         </v-tooltip>
-                                        <v-btn v-if="!group.linked.includes(item)" icon small color="grey" @click.stop title="Unlinked">
+                                        <v-btn v-if="!group.linked.includes(item)" icon small color="grey" @click.stop title="Unlinked" class="mx-n1">
                                             <v-icon small>mdi-link-off</v-icon>
                                         </v-btn>
-                                        <v-btn v-if="item.path" icon small color="primary" @click.stop="handleOpenFile(item.path)" title="Open in Default Editor">
+                                        <v-btn v-if="item.path" icon small color="primary" @click.stop="handleOpenFile(item.path)" title="Open in Default Editor" class="mx-n1">
                                             <v-icon small>mdi-file-document-outline</v-icon>
                                         </v-btn>
-                                        <v-btn icon small color="error" @click.stop="deleteItem(item)" title="Delete Element">
+                                        <v-btn icon small color="error" @click.stop="deleteItem(item)" title="Delete Element" class="mx-n1">
                                             <v-icon small>mdi-trash-can-outline</v-icon>
                                         </v-btn>
                                     </v-list-item-action>
                                 </template>
 
-                                <v-list-item v-for="(child, idx) in getFileTree(item)" :key="child.id || idx" :style="{paddingLeft: (child.level * 16 + 12) + 'px', minHeight: '32px'}">
-                                    <v-list-item-content class="py-1" style="min-width: 0">
-                                        <v-list-item-title class="text-caption d-flex align-center" style="min-width: 0">
+                                <v-list-item v-for="(child, idx) in getFileTree(item)" :key="child.id || idx" :style="{paddingLeft: (child.level * 16 + 8) + 'px', minHeight: '28px'}">
+                                    <v-list-item-content @click.stop="child.path && handleOpenFile(child.path)" :style="{cursor: child.path ? 'pointer' : 'default'}">
+                                        <v-list-item-title class="text-caption d-flex align-center">
                                             <v-icon small class="mr-1" :color="child.hasError ? 'error' : 'grey'">{{ child.icon || 'mdi-file-outline' }}</v-icon>
-                                            <span :class="{'error--text': child.hasError, 'grey--text text--lighten-1': !child.path}" class="text-truncate" style="flex: 1; min-width: 0">{{ child.name }}</span>
+                                            <span :class="{'error--text': child.hasError, 'grey--text text--lighten-1': !child.path}" class="text-truncate" style="flex: 1">{{ child.name }}</span>
                                             <v-tooltip bottom v-if="child.hasError">
                                                 <template v-slot:activator="{ on, attrs }">
                                                     <v-icon x-small color="error" class="ml-1" v-bind="attrs" v-on="on">mdi-alert-circle</v-icon>
@@ -82,9 +82,9 @@
                                             </v-tooltip>
                                         </v-list-item-title>
                                     </v-list-item-content>
-                                    <v-list-item-action v-if="child.path">
-                                        <v-btn icon x-small color="tertiary" @click.stop="handleOpenFile(child.path)">
-                                            <v-icon x-small>mdi-file-document-outline</v-icon>
+                                    <v-list-item-action v-if="child.path" class="ma-0">
+                                        <v-btn icon x-small @click.stop="handleOpenFile(child.path)">
+                                            <v-icon x-small>mdi-open-in-new</v-icon>
                                         </v-btn>
                                     </v-list-item-action>
                                 </v-list-item>
@@ -271,3 +271,7 @@ export default {
     }
 };
 </script>
+<style>
+.v-list-group__header { padding-right: 12px !important; }
+.text-truncate { min-width: 0; }
+</style>
