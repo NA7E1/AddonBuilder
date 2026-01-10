@@ -29,7 +29,7 @@ window.helpText = await readJson(HELP);
 const logQueue = [];
 let isLogging = false;
 
-window.log = async (line, error) => {
+window.log = async function (line, error) {
     if (error) {
         console.error(`[AddonBuilder] ${line}`);
         notification.createError(new Error(`AddonBuilder Error: ${line}`));
@@ -50,7 +50,7 @@ window.log = async (line, error) => {
     }
 };
 
-window.parseJSON = async (path) => {
+window.parseJSON = async function(path) {
     if (!path || !(await fs.fileExists(path))) return {};
     const raw = await fs.readFile(path, 'utf8');
     const text = typeof raw === 'string' ? raw : (await raw?.text?.()) || '';
@@ -59,7 +59,7 @@ window.parseJSON = async (path) => {
     return JSON.parse(cleaned);
 };
 
-window.mergeJSON = async (target, source) => {
+window.mergeJSON = async function(target, source) {
     for (const key in source) {
         const value = source[key];
         if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -67,6 +67,16 @@ window.mergeJSON = async (target, source) => {
         } else target[key] = value;
     }
     return target;
+};
+
+window.helpBtn = function() {
+    return {
+        props: ['text'],
+        template: `<v-menu open-on-hover bottom offset-y max-width="300">
+            <template v-slot:activator="{ on }"><v-btn icon x-small v-on="on"><v-icon color="grey lighten-1">mdi-help-circle-outline</v-icon></v-btn></template>
+            <v-card outlined><v-card-text class="pa-2">{{text}}</v-card-text></v-card>
+        </v-menu>`
+    };
 };
 
 if (window.settings.debugLogging) await fs.writeFile(LOG, `${new Date().toISOString()}: Addon Builder started\n`);

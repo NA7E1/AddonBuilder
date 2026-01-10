@@ -130,16 +130,6 @@ export default {
         }
     },
 
-    components: {
-        HelpBtn: {
-            props: ['text'],
-            template: `<v-menu open-on-hover bottom offset-y max-width="300">
-                <template v-slot:activator="{ on }"><v-btn icon x-small v-on="on"><v-icon color="grey lighten-1">mdi-help-circle-outline</v-icon></v-btn></template>
-                <v-card outlined><v-card-text class="pa-2">{{text}}</v-card-text></v-card>
-            </v-menu>`
-        }
-    },
-
     async mounted() {
         this.bridge = {
             env: await require('@bridge/env'),
