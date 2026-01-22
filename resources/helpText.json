@@ -1,4 +1,15 @@
 {
+    "manifest": {
+        "name": "The display name of your behavior pack that will be shown to players.",
+        "description": "A brief description of what your behavior pack does.",
+        "version": "The version of your behavior pack in the format X.Y.Z (e.g., 1.0.0).",
+        "uuid": "A unique identifier for your behavior pack. This should never be shared with other packs.",
+        "min_engine_version": "The minimum version of Minecraft required to run this pack."
+    },
+    "subpack": {
+        "name": "The display name shown to players when selecting this subpack.",
+        "folder_name": "The folder name within your pack that contains this subpack's files."
+    },
     "structure_set": {
         "identifier": "The unique identifier for this structure set, typically in the format 'namespace:name'."
     },
